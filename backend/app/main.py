@@ -1,7 +1,8 @@
 import os
 import json
 from typing import List, Dict, Any, Optional
-from fastapi import FastAPI, HTTPException, Query, Body
+from datetime import datetime, timezone
+from fastapi import FastAPI, HTTPException, Query, Body, Request, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -317,8 +318,82 @@ def get_metrics():
         }
     }
 
+# 7b. Autonomous Live Webhook Receiver (Continuous Server Monitoring / Streaming)
+@app.post("/api/webhook/alert")
+@app.post("/api/alerts")
+async def receive_live_alert_webhook(request: Request):
+    """
+    Autonomous webhook endpoint for continuous live server monitoring.
+    Accepts:
+      - Prometheus Alertmanager webhooks: {"alerts": [...]}
+      - Datadog / CloudWatch / Keep webhooks
+      - Autonomous daemon metrics / logs: {"server": "...", "name": "...", "severity": "...", "message": "..."}
+      - Arrays of alert objects
+    """
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON payload")
+
+    records = []
+    # 1. Prometheus Alertmanager webhook format: {"alerts": [...]}
+    if isinstance(body, dict) and "alerts" in body and isinstance(body["alerts"], list):
+        for prom_alert in body["alerts"]:
+            labels = prom_alert.get("labels", {})
+            annotations = prom_alert.get("annotations", {})
+            records.append({
+                "alert_id": labels.get("alertname", "Alert") + "-" + str(int(datetime.now().timestamp())),
+                "timestamp": prom_alert.get("startsAt") or datetime.now(timezone.utc).isoformat(),
+                "server": labels.get("instance") or labels.get("node") or labels.get("server") or labels.get("service") or "server-node",
+                "alertname": labels.get("alertname") or "PrometheusAlert",
+                "severity": labels.get("severity") or "warning",
+                "message": annotations.get("description") or annotations.get("summary") or prom_alert.get("status", "firing"),
+                "source": "prometheus"
+            })
+    elif isinstance(body, list):
+        records = body
+    elif isinstance(body, dict):
+        records = [body]
+
+    if not records:
+        raise HTTPException(status_code=400, detail="No alert records found in webhook")
+
+    # Ingest using schema detector with auto-topology inference
+    new_alerts = loader.load_from_raw_records(records)
+    
+    # Append to state.alerts
+    for a in new_alerts:
+        state.alerts.append(a)
+
+    # Autonomously re-correlate stream
+    state.guard = RecallGuard(state.alerts)
+    run_full_correlation()
+
+    # Find the incident containing this alert
+    assigned_inc = None
+    if new_alerts:
+        last_alert_id = new_alerts[-1].alert_id
+        for inc in state.incidents:
+            if any(a.alert_id == last_alert_id for a in inc.alerts):
+                assigned_inc = inc
+                break
+
+    return {
+        "status": "received_and_correlated",
+        "alerts_ingested": len(new_alerts),
+        "total_active_alerts": len(state.alerts),
+        "total_incidents": len(state.incidents),
+        "assigned_incident": {
+            "incident_id": assigned_inc.incident_id if assigned_inc else None,
+            "origin_root_cause_server": assigned_inc.origin.service if assigned_inc else None,
+            "confidence": assigned_inc.origin.confidence if assigned_inc else None,
+            "total_alerts_collapsed": len(assigned_inc.alerts) if assigned_inc else 1,
+            "servers_affected": assigned_inc.services if assigned_inc else [],
+            "brief_description": assigned_inc.ai_summary if assigned_inc else None
+        } if assigned_inc else None
+    }
+
 # 8. Ingest Real Server Data (Upload CSV / JSON or Load Real Historic Dataset)
-from fastapi import UploadFile, File
 import csv
 import io
 
