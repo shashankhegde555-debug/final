@@ -40,3 +40,16 @@ This log documents all non-obvious choices, dataset assumptions, performance tra
   - The 2B model is queried strictly in the advisory/presentation layer for generating human-friendly root-cause summaries and water pipe analogies.
   - Every AI-generated summary is clearly labeled `[AI Summary (Advisory)]` in the UI and API response, with the underlying mathematical weights, timestamps, and graph distances preserved as the immutable source of truth.
   - If Ollama is offline, a deterministic template engine automatically produces the exact water-pipe analogies for the 18 archetypes without failure.
+
+---
+
+## Decision 005: Transition from Analogies to Concise Technical Root-Cause Brief Descriptions
+- **Date:** 2026-10-29
+- **Context:** User requested: "dont use the llama 2B to give 'water pipe analogy' instead make it just give a brief description".
+- **Decision:**
+  - Shifted the 2B model prompt from colloquial "water pipe analogies" to direct, concise technical root-cause engineering briefs.
+  - The model directly explains:
+    1. Exactly what hardware, query, or runtime resource malfunctioned on the origin service node.
+    2. Why that specific failure cascaded to downstream microservices.
+  - Retained deterministic fallback using the 18 server problem catalogue.
+  - The UI feed and detail modal were updated to display "Root-Cause Brief Description: 2B Parameter Model Diagnosis" with zero analogies.
