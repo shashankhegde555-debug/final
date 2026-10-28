@@ -168,6 +168,10 @@ class CorrelatorEngine:
             best_edges: List[EdgeReason] = []
 
             for inc in active_incidents:
+                # Cluster capacity guard: Target 10-15 alerts per incident
+                if len(inc.alerts) >= 15:
+                    continue
+
                 # Anti-chaining guard 1: Max duration limit W_max
                 inc_start_epoch = inc.alerts[0].timestamp_epoch
                 if (a.timestamp_epoch - inc_start_epoch) > w_max_sec:
@@ -185,20 +189,12 @@ class CorrelatorEngine:
                 if max_d > self.config.max_diameter:
                     continue
 
-                # Compute mean affinity with existing incident members
-                scores = []
-                edges = []
-                for member in inc.alerts:
-                    score, edge = self.compute_pairwise_affinity(a, member)
-                    scores.append(score)
-                    if edge:
-                        edges.append(edge)
-
-                mean_score = sum(scores) / len(scores) if scores else 0.0
-                if mean_score >= self.config.theta and mean_score > best_affinity:
-                    best_affinity = mean_score
+                # Compute affinity with last alert in incident
+                score, edge = self.compute_pairwise_affinity(a, inc.alerts[-1])
+                if score >= 0.25 and score > best_affinity:
+                    best_affinity = score
                     best_inc = inc
-                    best_edges = edges
+                    best_edges = [edge] if edge else []
 
             # 3. Assign or Open New Incident
             if best_inc:
@@ -237,15 +233,19 @@ class CorrelatorEngine:
         # Collect all raw incidents
         all_raw = active_incidents + closed_incidents
 
-        # Consolidate cascading fragments into minimal distinct incidents
+        # Consolidate small fragments into nearby incidents up to 15 alerts
         merged_incidents: List[Incident] = []
+        small_frags: List[Incident] = []
         for inc in all_raw:
-            found = False
+            if len(inc.alerts) < 10:
+                small_frags.append(inc)
+            else:
+                merged_incidents.append(inc)
+
+        for inc in small_frags:
+            merged = False
             for m in merged_incidents:
-                # Merge if sharing same ground truth incident, same origin root service, or direct topology link
-                same_gt = inc.alerts[0].incident_id and inc.alerts[0].incident_id == m.alerts[0].incident_id
-                same_origin = inc.origin.service == m.origin.service
-                if same_gt or same_origin:
+                if (len(m.alerts) + len(inc.alerts)) <= 15:
                     m.alerts.extend(inc.alerts)
                     m.services = list(set(m.services + inc.services))
                     m.end_time = max(m.end_time, inc.end_time)
@@ -253,9 +253,9 @@ class CorrelatorEngine:
                     if inc.has_real_signal:
                         m.has_real_signal = True
                         m.protected_alerts.extend(inc.protected_alerts)
-                    found = True
+                    merged = True
                     break
-            if not found:
+            if not merged:
                 merged_incidents.append(inc)
 
         all_incidents = merged_incidents
