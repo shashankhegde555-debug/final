@@ -15,6 +15,16 @@ const tabLabels: Record<DashboardTab, string> = {
   topology: 'Service Map',
 };
 
+const fetchJson = async (url: string) => {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  const ct = r.headers.get('content-type') || '';
+  if (ct.includes('text/html') && !url.endsWith('.html')) {
+    throw new Error('HTML returned instead of JSON');
+  }
+  return r.json();
+};
+
 export function App() {
   const [activeTab, setActiveTab] = useState<DashboardTab>('feed');
   const [incidents, setIncidents] = useState<Incident[]>([]);
@@ -27,24 +37,29 @@ export function App() {
   const [currentDataset, setCurrentDataset] = useState('zookeeper');
   const [loadingDataset, setLoadingDataset] = useState(false);
 
-  const loadDashboard = useCallback(async () => {
+  const loadDashboard = useCallback(async (datasetName?: string) => {
+    const ds = datasetName || currentDataset;
     try {
       const [incRes, noiseRes, whatIfRes, metricsRes, topoRes] = await Promise.all([
-        fetch('/api/incidents?limit=100')
-          .then((r) => { if (!r.ok) throw new Error(); return r.json(); })
-          .catch(() => fetch('/data_snapshot/incidents.json').then((r) => r.json())),
-        fetch('/api/noise/rules')
-          .then((r) => { if (!r.ok) throw new Error(); return r.json(); })
-          .catch(() => fetch('/data_snapshot/noise_rules.json').then((r) => r.json()).catch(() => ({ rules: [] }))),
-        fetch('/api/noise/what-if')
-          .then((r) => { if (!r.ok) throw new Error(); return r.json(); })
-          .catch(() => fetch('/data_snapshot/what_if.json').then((r) => r.json()).catch(() => null)),
-        fetch('/api/metrics')
-          .then((r) => { if (!r.ok) throw new Error(); return r.json(); })
-          .catch(() => fetch('/data_snapshot/metrics.json').then((r) => r.json()).catch(() => ({ benchmarks: [] }))),
-        fetch('/api/topology')
-          .then((r) => { if (!r.ok) throw new Error(); return r.json(); })
-          .catch(() => fetch('/data_snapshot/topology.json').then((r) => r.json()).catch(() => ({ nodes: [], edges: [] }))),
+        fetchJson('/api/incidents?limit=100')
+          .catch(() => fetchJson(`/data_snapshot/${ds}/incidents.json`))
+          .catch(() => fetchJson('/data_snapshot/incidents.json')),
+        fetchJson('/api/noise/rules')
+          .catch(() => fetchJson(`/data_snapshot/${ds}/noise_rules.json`))
+          .catch(() => fetchJson('/data_snapshot/noise_rules.json'))
+          .catch(() => ({ rules: [] })),
+        fetchJson('/api/noise/what-if')
+          .catch(() => fetchJson(`/data_snapshot/${ds}/what_if.json`))
+          .catch(() => fetchJson('/data_snapshot/what_if.json'))
+          .catch(() => null),
+        fetchJson('/api/metrics')
+          .catch(() => fetchJson(`/data_snapshot/${ds}/metrics.json`))
+          .catch(() => fetchJson('/data_snapshot/metrics.json'))
+          .catch(() => ({ benchmarks: [] })),
+        fetchJson('/api/topology')
+          .catch(() => fetchJson(`/data_snapshot/${ds}/topology.json`))
+          .catch(() => fetchJson('/data_snapshot/topology.json'))
+          .catch(() => ({ nodes: [], edges: [] })),
       ]);
       setIncidents(incRes.incidents || []);
       setNoiseRules(noiseRes.rules || []);
@@ -57,20 +72,23 @@ export function App() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [currentDataset]);
 
   useEffect(() => { void loadDashboard(); }, [loadDashboard]);
 
   const handleSelectDataset = async (dataset: string) => {
     setLoadingDataset(true);
+    setCurrentDataset(dataset);
     try {
       const response = await fetch(`/api/ingest/loghub/${dataset}`, { method: 'POST' });
-      if (!response.ok) throw new Error('Could not load this data set');
-      setCurrentDataset(dataset);
-      await loadDashboard();
-    } catch (err) {
-      console.warn('Dataset switch on standalone preview:', err);
-      setCurrentDataset(dataset);
+      const ct = response.headers.get('content-type') || '';
+      if (!response.ok || ct.includes('text/html')) {
+        throw new Error('Live backend unavailable, falling back to snapshot');
+      }
+      await loadDashboard(dataset);
+    } catch {
+      // Standalone deployed site (Vercel): load dataset's precomputed snapshot
+      await loadDashboard(dataset);
     } finally {
       setLoadingDataset(false);
     }

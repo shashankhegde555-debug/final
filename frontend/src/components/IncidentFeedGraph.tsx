@@ -102,7 +102,8 @@ export const IncidentFeedGraph: React.FC<IncidentFeedGraphProps> = ({ totalAlert
     setExplanationLoading(true);
     fetch(`/api/incidents/${encodeURIComponent(selectedIncidentId)}/explain`, { method: 'POST' })
       .then((response) => {
-        if (!response.ok) throw new Error('Explanation unavailable');
+        const ct = response.headers.get('content-type') || '';
+        if (!response.ok || ct.includes('text/html')) throw new Error('Explanation unavailable');
         return response.json();
       })
       .then((result) => { if (current) setExplanation(result); })
