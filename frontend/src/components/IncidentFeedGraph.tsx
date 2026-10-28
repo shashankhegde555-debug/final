@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import type { Incident } from '../types';
+import React, { useEffect, useMemo, useState } from 'react';
+import type { Alert, Incident } from '../types';
 
 interface IncidentFeedGraphProps {
   totalAlerts: number;
@@ -7,206 +7,198 @@ interface IncidentFeedGraphProps {
   reductionRate: number;
 }
 
-export const IncidentFeedGraph: React.FC<IncidentFeedGraphProps> = ({
-  totalAlerts,
-  incidents,
-  reductionRate,
-}) => {
-  const [selectedIncident, setSelectedIncident] = useState<Incident | null>(
-    incidents.length > 0 ? incidents[0] : null
-  );
+interface TimelineBin {
+  start: number;
+  end: number;
+  rawAlerts: number;
+  incidentStarts: Incident[];
+  activeIncidents: Incident[];
+}
 
-  const incidentsCount = incidents.length;
-  // Compute max alerts for y-axis scaling (at least 16 to fit 10-15 alerts nicely)
-  const maxAlerts = Math.max(16, ...incidents.map((i) => i.alerts?.length || 0));
-  const chartHeight = 180; // px
+const alertTime = (alert: Alert) => {
+  const epoch = Number(alert.timestamp_epoch);
+  if (Number.isFinite(epoch) && epoch > 0) return epoch * 1000;
+  return Date.parse(alert.timestamp);
+};
+
+const incidentAlertCount = (incident: Incident) => (incident.alerts || []).reduce(
+  (count, alert) => count + Math.max(1, alert.dedup_count || 1), 0);
+
+const formatTime = (value: number, includeDate: boolean) => {
+  const date = new Date(value);
+  return includeDate
+    ? date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+    : date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+};
+
+export const IncidentFeedGraph: React.FC<IncidentFeedGraphProps> = ({ totalAlerts, incidents, reductionRate }) => {
+  const [selectedId, setSelectedId] = useState<string | null>(incidents[0]?.incident_id ?? null);
+  const [explanation, setExplanation] = useState<{ brief_description?: string; what_it_implies?: string } | null>(null);
+  const [explanationLoading, setExplanationLoading] = useState(false);
+
+  const { bins, maxAlerts, startTime, endTime } = useMemo(() => {
+    const eventTimes = incidents.flatMap((incident) =>
+      (incident.alerts || []).map(alertTime).filter(Number.isFinite));
+    const starts = incidents.map((incident) => Date.parse(incident.start_time)).filter(Number.isFinite);
+    const times = [...eventTimes, ...starts];
+    const minimum = times.length ? Math.min(...times) : Date.now();
+    const maximum = times.length ? Math.max(...times) : minimum + 1;
+    const span = Math.max(60_000, maximum - minimum + 1);
+    const binCount = Math.min(16, Math.max(8, Math.ceil(incidents.length / 2)));
+    const binSize = span / binCount;
+    const timeline: TimelineBin[] = Array.from({ length: binCount }, (_, index) => ({
+      start: minimum + index * binSize,
+      end: minimum + (index + 1) * binSize,
+      rawAlerts: 0,
+      incidentStarts: [],
+      activeIncidents: [],
+    }));
+
+    incidents.forEach((incident) => {
+      const parsedStart = Date.parse(incident.start_time);
+      const start = Number.isFinite(parsedStart) ? parsedStart : minimum;
+      const startIndex = Math.min(binCount - 1, Math.max(0, Math.floor((start - minimum) / binSize)));
+      timeline[startIndex].incidentStarts.push(incident);
+
+      (incident.alerts || []).forEach((alert) => {
+        const time = alertTime(alert);
+        const index = Number.isFinite(time)
+          ? Math.min(binCount - 1, Math.max(0, Math.floor((time - minimum) / binSize)))
+          : startIndex;
+        const bin = timeline[index];
+        bin.rawAlerts += Math.max(1, alert.dedup_count || 1);
+        if (!bin.activeIncidents.some((item) => item.incident_id === incident.incident_id)) {
+          bin.activeIncidents.push(incident);
+        }
+      });
+    });
+
+    return {
+      bins: timeline,
+      maxAlerts: Math.max(1, ...timeline.map((bin) => bin.rawAlerts)),
+      startTime: minimum,
+      endTime: maximum,
+    };
+  }, [incidents]);
+
+  const selectedIncident = incidents.find((incident) => incident.incident_id === selectedId) ?? incidents[0] ?? null;
+  const selectedIncidentId = selectedIncident?.incident_id;
+  const dateRange = new Date(startTime).toLocaleDateString() === new Date(endTime).toLocaleDateString();
+
+  useEffect(() => {
+    setSelectedId((current) => incidents.some((incident) => incident.incident_id === current)
+      ? current
+      : incidents[0]?.incident_id ?? null);
+  }, [incidents]);
+
+  useEffect(() => {
+    if (!selectedIncidentId) {
+      setExplanation(null);
+      return;
+    }
+
+    let current = true;
+    setExplanation(null);
+    setExplanationLoading(true);
+    fetch(`/api/incidents/${encodeURIComponent(selectedIncidentId)}/explain`, { method: 'POST' })
+      .then((response) => {
+        if (!response.ok) throw new Error('Explanation unavailable');
+        return response.json();
+      })
+      .then((result) => { if (current) setExplanation(result); })
+      .catch(() => { if (current) setExplanation(null); })
+      .finally(() => { if (current) setExplanationLoading(false); });
+
+    return () => { current = false; };
+  }, [selectedIncidentId]);
 
   return (
-    <div className="w-full bg-black border-2 border-white p-5 shadow-[5px_5px_0px_#ff0033] mb-8 font-mono">
-      {/* Header & Plain English Legend */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between border-b-2 border-red-600 pb-4 mb-4 gap-4">
+    <section className="incident-chart-panel" aria-labelledby="incident-chart-title">
+      <header className="incident-chart-header">
         <div>
-          <div className="flex items-center gap-2">
-            <span className="w-3 h-3 bg-red-600 inline-block animate-pulse"></span>
-            <h2 className="text-base font-bold text-white tracking-wider uppercase font-['Silkscreen']">
-              INCIDENT FEED GRAPH: 10–15 ALERTS PER INCIDENT
-            </h2>
-          </div>
-          <p className="text-xs text-neutral-400 mt-1">
-            Standard activity graph comparing raw incoming server alarms with consolidated incident tickets.
-          </p>
+          <p className="chart-kicker">LIVE INCIDENT FEED</p>
+          <h2 id="incident-chart-title">Alert activity over time</h2>
+          <p className="chart-intro">Red bars show incoming alerts. White markers show when the system opened an incident.</p>
         </div>
-
-        {/* Normal Graph Legend using Green and Orange */}
-        <div className="flex flex-wrap items-center gap-4 text-xs bg-neutral-950 p-2.5 border border-neutral-800">
-          <div className="flex items-center gap-2">
-            <span className="w-3.5 h-3.5 bg-orange-500 border border-orange-400 inline-block"></span>
-            <span className="text-orange-400 font-bold">
-              Orange: Raw Alerts Fired (10–15 Alarms)
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="w-3.5 h-3.5 bg-green-500 border border-green-400 inline-block"></span>
-            <span className="text-green-400 font-bold">
-              Green: Actionable Ticket (Root Cause Isolated)
-            </span>
-          </div>
+        <div className="chart-summary" aria-label="Feed totals">
+          <div><strong>{totalAlerts.toLocaleString()}</strong><span>raw alerts</span></div>
+          <div><strong>{incidents.length.toLocaleString()}</strong><span>incidents opened</span></div>
+          <div><strong>{reductionRate.toFixed(1)}%</strong><span>alert reduction</span></div>
         </div>
-      </div>
+      </header>
 
-      {/* Main Standard Graph Area */}
-      <div className="relative bg-neutral-950/80 border border-neutral-850 p-4 pt-6">
-        {/* Y-Axis Grid Lines & Labels */}
-        <div className="relative w-full" style={{ height: `${chartHeight}px` }}>
-          {/* Horizontal Grid lines */}
-          {[15, 10, 5, 0].map((val) => {
-            const bottomPercent = (val / maxAlerts) * 100;
-            return (
-              <div
-                key={val}
-                className="absolute w-full flex items-center border-b border-neutral-800/80 pointer-events-none"
-                style={{ bottom: `${bottomPercent}%` }}
-              >
-                <span className="text-[10px] text-neutral-500 font-bold w-10 text-right pr-2">
-                  {val}
-                </span>
-                <div className="flex-1 border-b border-dashed border-neutral-800"></div>
+      {incidents.length === 0 ? (
+        <div className="chart-empty">No incidents are available to graph.</div>
+      ) : (
+        <>
+          <div className="chart-legend">
+            <span className="legend-item"><span className="legend-swatch alert-swatch" /> Alerts received</span>
+            <span className="legend-item"><span className="legend-swatch incident-swatch" /> Incidents opened</span>
+            <span className="legend-hint">Select a time window to inspect its highest-priority incident.</span>
+          </div>
+          <div className="timeline-chart">
+            <div className="timeline-y-axis" aria-hidden="true">
+              {[maxAlerts, Math.round(maxAlerts / 2), 0].map((value, index) => <span key={`${value}-${index}`}>{value}</span>)}
+            </div>
+            <div className="timeline-main">
+              <div className="timeline-plot" style={{ '--bin-count': bins.length } as React.CSSProperties}>
+                {[0, 50, 100].map((position) => <span key={position} className={`timeline-gridline grid-${position}`} aria-hidden="true" />)}
+                {bins.map((bin, index) => {
+                  const incidentsInWindow = bin.activeIncidents.length ? bin.activeIncidents : bin.incidentStarts;
+                  const selectedInBin = incidentsInWindow
+                    .slice()
+                    .sort((a, b) => (b.priority?.score || 0) - (a.priority?.score || 0))[0];
+                  const selected = selectedIncident?.incident_id === selectedInBin?.incident_id;
+                  const intensity = bin.rawAlerts / maxAlerts;
+                  const height = bin.rawAlerts ? Math.max(5, intensity * 100) : 0;
+                  const title = `${formatTime(bin.start, !dateRange)} — ${bin.rawAlerts} alerts, ${bin.incidentStarts.length} incidents opened`;
+
+                  return (
+                    <button
+                      key={index}
+                      type="button"
+                      className={`timeline-bin ${selected ? 'is-selected' : ''} ${bin.rawAlerts ? '' : 'is-empty'}`}
+                      onClick={() => selectedInBin && setSelectedId(selectedInBin.incident_id)}
+                      disabled={!selectedInBin}
+                      aria-pressed={selected}
+                      aria-label={`${title}${selectedInBin ? `. Inspect ${selectedInBin.incident_id}` : ''}`}
+                      title={title}
+                    >
+                      <span className="timeline-value">{bin.rawAlerts || ''}</span>
+                      <span className="timeline-bar-area">
+                        <span className="timeline-bar" style={{ height: `${height}%`, opacity: 0.6 + intensity * 0.4 }} />
+                      </span>
+                      <span className="timeline-opened" aria-label={`${bin.incidentStarts.length} incidents opened`}>
+                        {bin.incidentStarts.slice(0, 3).map((incident) => <i key={incident.incident_id} />)}
+                        {bin.incidentStarts.length > 3 && <b>+{bin.incidentStarts.length - 3}</b>}
+                      </span>
+                      <span className="timeline-label">{formatTime(bin.start, !dateRange)}</span>
+                    </button>
+                  );
+                })}
               </div>
-            );
-          })}
+              <div className="timeline-axis-caption">{formatTime(startTime, true)} <span>TIME</span> {formatTime(endTime, true)}</div>
+            </div>
+          </div>
 
-          {/* Bar Columns Container */}
-          <div
-            className="absolute left-10 right-0 top-0 bottom-0 flex items-end gap-2 sm:gap-3 overflow-x-auto pb-1 px-2"
-            style={{ height: `${chartHeight}px` }}
-          >
-            {incidents.map((inc, idx) => {
-              const alertCount = inc.alerts?.length || 0;
-              const barHeightPx = Math.max(16, (alertCount / maxAlerts) * (chartHeight - 30));
-              const isSelected = selectedIncident?.incident_id === inc.incident_id;
-
-              return (
-                <div
-                  key={inc.incident_id || idx}
-                  onClick={() => setSelectedIncident(inc)}
-                  className={`flex flex-col items-center flex-shrink-0 cursor-pointer group transition-transform ${
-                    isSelected ? 'scale-105' : 'hover:scale-102'
-                  }`}
-                  style={{ width: '48px' }}
-                >
-                  {/* Green Ticket Indicator at the top of each incident column */}
-                  <div className="flex items-center gap-1 mb-1.5" title="1 Actionable Ticket Formed">
-                    <span className="w-2.5 h-2.5 rounded-none bg-green-500 border border-green-300 shadow-[0_0_6px_#22c55e]"></span>
-                    <span className="text-[9px] font-bold text-green-400">1</span>
-                  </div>
-
-                  {/* Orange Value Label */}
-                  <span className="text-[11px] font-bold text-orange-400 mb-1 leading-none">
-                    {alertCount}
-                  </span>
-
-                  {/* Orange Alert Count Bar */}
-                  <div
-                    className={`w-full border transition-all ${
-                      isSelected
-                        ? 'bg-orange-500 border-white shadow-[0_0_10px_#f97316]'
-                        : 'bg-orange-600/90 hover:bg-orange-500 border-orange-400'
-                    }`}
-                    style={{ height: `${barHeightPx}px` }}
-                    title={`Incident ${inc.incident_id}: ${alertCount} alerts firing across server '${inc.origin.service}'`}
-                  >
-                    {/* Inner texture lines for pixel feel */}
-                    <div className="w-full h-full bg-[linear-gradient(transparent_50%,rgba(0,0,0,0.25)_50%)] bg-[length:100%_4px]"></div>
-                  </div>
-
-                  {/* X-Axis Incident ID Label */}
-                  <span
-                    className={`text-[9px] font-bold mt-2 truncate w-full text-center ${
-                      isSelected ? 'text-white bg-red-600 px-0.5' : 'text-neutral-400 group-hover:text-white'
-                    }`}
-                  >
-                    #{idx + 1 < 10 ? `0${idx + 1}` : idx + 1}
-                  </span>
-
-                  {/* Origin Server abbreviation */}
-                  <span className="text-[8px] text-neutral-500 truncate w-full text-center mt-0.5">
-                    {inc.origin.service.slice(0, 7)}
-                  </span>
+          {selectedIncident && (
+            <div className="selected-incident" aria-live="polite">
+              <div className="selected-mark" aria-hidden="true" />
+              <div className="selected-copy">
+                <div className="selected-overline">INCIDENT DETAIL <span>{selectedIncident.incident_id}</span></div>
+                <h3>{selectedIncident.summary}</h3>
+                <p>Likely source: <strong>{selectedIncident.origin.service}</strong> · {incidentAlertCount(selectedIncident)} raw alerts · {selectedIncident.alerts?.length ?? 0} grouped records · {selectedIncident.services?.length ?? 0} services</p>
+                <div className="selected-explanation" aria-live="polite">
+                  <p>{explanationLoading ? 'Loading explanation…' : explanation?.brief_description || selectedIncident.ai_summary || 'Explanation is not available right now.'}</p>
+                  {(explanation?.what_it_implies || selectedIncident.ai_implication) && <p>{explanation?.what_it_implies || selectedIncident.ai_implication}</p>}
                 </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* X-Axis Footer Bar */}
-        <div className="mt-6 pt-2 border-t border-neutral-800 flex flex-col sm:flex-row items-center justify-between text-xs text-neutral-400 gap-2">
-          <div className="flex items-center gap-2">
-            <span className="text-white font-bold">X-Axis:</span>
-            <span>Real Server Incidents (Grouped 10–15 alerts per incident)</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-white font-bold">Y-Axis:</span>
-            <span>Alert Storm Volume (0 to 15 Alarms)</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Selected Incident Inspector Card (Simple English for Judges) */}
-      {selectedIncident && (
-        <div className="mt-4 p-4 bg-neutral-950 border border-neutral-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="space-y-1">
-            <div className="flex items-center gap-3">
-              <span className="text-xs font-bold text-white uppercase bg-red-600 px-2 py-0.5">
-                {selectedIncident.incident_id}
-              </span>
-              <span className="text-xs text-orange-400 font-bold">
-                🟠 {selectedIncident.alerts?.length || 0} Raw Alarms Fired
-              </span>
-              <span className="text-xs text-green-400 font-bold">
-                🟢 1 Grouped Actionable Ticket
-              </span>
+              </div>
+              <div className="selected-confidence"><strong>{Math.round(selectedIncident.origin.confidence * 100)}%</strong><span>source match</span></div>
+              <div className="selected-priority">Priority <strong>{Math.round((selectedIncident.priority?.score ?? 0) * 100)}</strong></div>
             </div>
-            <div className="text-sm font-bold text-white mt-1">
-              ROOT CAUSE ORIGIN: <span className="text-red-500">{selectedIncident.origin.service}</span> ({Math.round(selectedIncident.origin.confidence * 100)}% confidence)
-            </div>
-            <p className="text-xs text-neutral-300">
-              {selectedIncident.summary || selectedIncident.ai_summary}
-            </p>
-          </div>
-
-          <div className="text-right flex-shrink-0">
-            <div className="text-[10px] text-neutral-400 uppercase">Affected Services:</div>
-            <div className="text-xs text-white font-bold">
-              {selectedIncident.services?.length || 1} servers ({selectedIncident.services?.slice(0, 3).join(', ')})
-            </div>
-            <div className="text-[10px] text-green-400 font-bold mt-1">
-              ✓ Noise Reduced: -{(((selectedIncident.alerts?.length - 1) / Math.max(1, selectedIncident.alerts?.length)) * 100).toFixed(0)}%
-            </div>
-          </div>
-        </div>
+          )}
+        </>
       )}
-
-      {/* Judge Fact Bar */}
-      <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs text-center">
-        <div className="border border-neutral-800 p-2 bg-neutral-950">
-          <span className="text-[10px] text-orange-400 block font-bold">🟠 TOTAL RAW ALERTS:</span>
-          <span className="text-sm font-bold text-white">{totalAlerts}</span>
-        </div>
-        <div className="border border-neutral-800 p-2 bg-neutral-950">
-          <span className="text-[10px] text-green-400 block font-bold">🟢 REAL INCIDENTS:</span>
-          <span className="text-sm font-bold text-white">{incidentsCount}</span>
-        </div>
-        <div className="border border-neutral-800 p-2 bg-neutral-950">
-          <span className="text-[10px] text-neutral-400 block font-bold">⚡ ALERTS PER INCIDENT:</span>
-          <span className="text-sm font-bold text-white">
-            10 to 15 (avg {(totalAlerts / Math.max(1, incidentsCount)).toFixed(1)})
-          </span>
-        </div>
-        <div className="border border-neutral-800 p-2 bg-neutral-950">
-          <span className="text-[10px] text-red-400 block font-bold">🎯 NOISE SUPPRESSED:</span>
-          <span className="text-sm font-bold text-red-500">-{reductionRate.toFixed(1)}%</span>
-        </div>
-      </div>
-    </div>
+    </section>
   );
 };

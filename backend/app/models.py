@@ -70,6 +70,7 @@ class Incident(BaseModel):
     protected_alerts: List[str] = []
     has_real_signal: bool = False
     ai_summary: Optional[str] = None
+    ai_implication: Optional[str] = None
     water_pipe_analogy: Optional[str] = None
     params: Dict[str, Any] = {}
     is_closed: bool = False

@@ -67,6 +67,7 @@ export interface Incident {
   protected_alerts: string[];
   has_real_signal: boolean;
   ai_summary?: string;
+  ai_implication?: string;
   water_pipe_analogy?: string;
   params: Record<string, any>;
   is_closed: boolean;

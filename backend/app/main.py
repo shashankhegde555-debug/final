@@ -71,18 +71,14 @@ def run_full_correlation():
     else:
         state.incidents = raw_incidents
 
-    # Instant assignment of curated root cause brief descriptions
-    for inc in state.incidents:
-        archetype_key = llm_summarizer.infer_root_cause_type(inc)
-        from backend.app.explain.llm_summarizer import SERVER_ROOT_CAUSES_CATALOGUE
-        archetype = SERVER_ROOT_CAUSES_CATALOGUE.get(archetype_key, SERVER_ROOT_CAUSES_CATALOGUE["database_slowdown"])
-        desc = (
-            f"Root Cause: {archetype['title']} on '{inc.origin.service}'. "
-            f"{archetype['description']} "
-            f"Cascaded to {len(inc.services)} dependent services: {', '.join(inc.services[:5])}."
-        )
-        inc.ai_summary = desc
-        inc.water_pipe_analogy = desc
+    # Instant assignment of curated root cause brief descriptions & implications
+    for idx, inc in enumerate(state.incidents):
+        use_llm = (idx == 0)
+        explanation = llm_summarizer.generate_explanation(inc, use_llm=use_llm)
+        inc.summary = explanation["title"]
+        inc.ai_summary = explanation["brief_description"]
+        inc.ai_implication = explanation["what_it_implies"]
+        inc.water_pipe_analogy = explanation["diagnostic_summary"]
 
 @app.get("/api/health")
 def get_health():

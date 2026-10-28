@@ -24,7 +24,12 @@ export const CytoscapeGraph: React.FC<CytoscapeGraphProps> = ({
     const highlightedSet = new Set(data.highlighted_services || []);
 
     const relevantNodes = isIncidentFiltered
-      ? data.nodes.filter(n => highlightedSet.has(n.id))
+      ? data.nodes.filter((node) =>
+          highlightedSet.has(node.id) || data.edges.some((edge) =>
+            (highlightedSet.has(edge.source) && edge.target === node.id) ||
+            (highlightedSet.has(edge.target) && edge.source === node.id)
+          )
+        )
       : data.nodes;
 
     const relevantNodeIds = new Set(relevantNodes.map(n => n.id));
@@ -66,42 +71,44 @@ export const CytoscapeGraph: React.FC<CytoscapeGraphProps> = ({
           style: {
             'label': 'data(label)',
             'color': '#f8fafc',
-            'font-size': '11px',
+            'font-size': '10px',
             'font-weight': 600,
             'text-valign': 'bottom',
-            'text-margin-y': 6,
-            'background-color': '#1e293b',
+            'text-margin-y': 8,
+            'text-outline-color': '#090909',
+            'text-outline-width': 2,
+            'background-color': '#151313',
             'border-width': 2,
-            'border-color': '#475569',
+            'border-color': '#817977',
             'width': 34,
             'height': 34,
           },
         },
         {
           selector: 'node[tier = "edge"]',
-          style: { 'background-color': '#0369a1', 'border-color': '#38bdf8' },
+          style: { 'background-color': '#171717', 'border-color': '#ded8d5' },
         },
         {
           selector: 'node[tier = "gateway"]',
-          style: { 'background-color': '#4338ca', 'border-color': '#818cf8' },
+          style: { 'background-color': '#281615', 'border-color': '#a63b35' },
         },
         {
           selector: 'node[tier = "service"]',
-          style: { 'background-color': '#0f766e', 'border-color': '#2dd4bf' },
+          style: { 'background-color': '#211d1c', 'border-color': '#b8aeaa' },
         },
         {
           selector: 'node[tier = "datastore"]',
-          style: { 'background-color': '#b45309', 'border-color': '#f59e0b' },
+          style: { 'background-color': '#3a1816', 'border-color': '#f04438' },
         },
         {
           selector: 'node[tier = "thirdparty"]',
-          style: { 'background-color': '#be185d', 'border-color': '#f472b6' },
+          style: { 'background-color': '#292626', 'border-color': '#8e8582' },
         },
         {
           selector: 'node[?isHighlighted]',
           style: {
             'border-width': 3,
-            'border-color': '#ef4444',
+            'border-color': '#ff8178',
             'width': 40,
             'height': 40,
           },
@@ -109,9 +116,10 @@ export const CytoscapeGraph: React.FC<CytoscapeGraphProps> = ({
         {
           selector: 'node[?isOrigin]',
           style: {
-            'background-color': '#059669',
+            'background-color': '#f04438',
             'border-width': 5,
-            'border-color': '#10b981',
+            'border-color': '#ffd2cf',
+            'color': '#090909',
             'width': 50,
             'height': 50,
             'font-size': '13px',
@@ -122,8 +130,8 @@ export const CytoscapeGraph: React.FC<CytoscapeGraphProps> = ({
           selector: 'edge',
           style: {
             'width': 2,
-            'line-color': '#334155',
-            'target-arrow-color': '#334155',
+            'line-color': '#514745',
+            'target-arrow-color': '#766c69',
             'target-arrow-shape': 'triangle',
             'curve-style': 'bezier',
             'arrow-scale': 1.2,
@@ -133,16 +141,17 @@ export const CytoscapeGraph: React.FC<CytoscapeGraphProps> = ({
           selector: 'edge[?isActive]',
           style: {
             'width': 3.5,
-            'line-color': '#10b981',
-            'target-arrow-color': '#10b981',
+            'line-color': '#f04438',
+            'target-arrow-color': '#f04438',
             'line-style': 'dashed',
           },
         },
       ],
       layout: {
-        name: isIncidentFiltered ? 'breadthfirst' : 'concentric',
+        name: 'breadthfirst',
         directed: true,
-        padding: 25,
+        padding: 48,
+        spacingFactor: 1.2,
       },
       userZoomingEnabled: true,
       userPanningEnabled: true,
@@ -165,8 +174,8 @@ export const CytoscapeGraph: React.FC<CytoscapeGraphProps> = ({
   }, [data, onNodeSelect]);
 
   return (
-    <div className="relative border border-slate-800 rounded-xl overflow-hidden bg-slate-950/70 shadow-inner">
-      <div className="absolute top-2 left-3 z-10 text-[11px] font-semibold text-slate-400 bg-slate-900/90 px-2.5 py-1 rounded-md border border-slate-700/60 backdrop-blur-sm">
+    <div className="relative border border-slate-800 rounded-xl overflow-hidden bg-slate-950/70 shadow-inner topology-graph-frame">
+      <div className="absolute top-2 left-3 z-10 text-[11px] font-semibold text-slate-400 bg-slate-900/90 px-2.5 py-1 rounded-md border border-slate-700/60 backdrop-blur-sm graph-origin-label">
         {data.origin_service ? (
           <span className="flex items-center gap-1.5">
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>

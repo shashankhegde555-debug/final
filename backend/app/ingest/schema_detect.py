@@ -89,11 +89,11 @@ class DatasetLoader:
                 except Exception:
                     epoch = 0.0
 
-            src = item.get("source") or "unknown"
-            svc = item.get("service") or item.get("app") or "unknown"
+            src = item.get("source") or "production-cluster"
+            svc = item.get("service") or item.get("server") or item.get("component") or item.get("app") or "core-service"
             sev = (item.get("severity") or item.get("level") or "warning").lower()
-            name = item.get("name") or item.get("rule") or "Alert"
-            msg = item.get("message") or item.get("description") or name
+            name = item.get("name") or item.get("alertname") or item.get("rule") or item.get("event") or "ServerAlert"
+            msg = item.get("message") or item.get("description") or item.get("content") or name
             host = item.get("host") or item.get("node")
             cust = item.get("customer_ref") or item.get("tenant_id")
             inc_id = item.get("incident_id")

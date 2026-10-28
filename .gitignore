@@ -23,3 +23,7 @@ Thumbs.db
 .vscode/
 .idea/
 .env
+
+# Submissions & Archives
+*.zip
+team_submissions/

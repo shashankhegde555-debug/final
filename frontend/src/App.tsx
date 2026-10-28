@@ -1,97 +1,125 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Header } from './components/Header';
 import { IncidentFeedGraph } from './components/IncidentFeedGraph';
 import { IncidentFeed } from './components/IncidentFeed';
-import type { Incident } from './types';
+import { NoiseStudio } from './components/NoiseStudio';
+import { MetricsScoreboard } from './components/MetricsScoreboard';
+import { TopologyView } from './components/TopologyView';
+import type { EvaluationReport, Incident, RuleNoiseStats, TopologyData } from './types';
+
+type DashboardTab = 'feed' | 'noise' | 'metrics' | 'topology';
+const tabLabels: Record<DashboardTab, string> = {
+  feed: 'Incident Feed',
+  noise: 'Noise Review',
+  metrics: 'Performance',
+  topology: 'Service Map',
+};
 
 export function App() {
+  const [activeTab, setActiveTab] = useState<DashboardTab>('feed');
   const [incidents, setIncidents] = useState<Incident[]>([]);
+  const [noiseRules, setNoiseRules] = useState<RuleNoiseStats[]>([]);
+  const [whatIfImpact, setWhatIfImpact] = useState<any>(null);
+  const [benchmarks, setBenchmarks] = useState<EvaluationReport[]>([]);
+  const [topology, setTopology] = useState<TopologyData>({ nodes: [], edges: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [currentDataset, setCurrentDataset] = useState('zookeeper');
   const [loadingDataset, setLoadingDataset] = useState(false);
 
-  // Load initial incidents from backend
-  const loadIncidents = async () => {
+  const loadDashboard = useCallback(async () => {
     try {
-      const res = await fetch('/api/incidents?limit=100');
-      if (!res.ok) throw new Error('Could not load incidents');
-      const data = await res.json();
-      setIncidents(data.incidents || []);
+      const [incRes, noiseRes, whatIfRes, metricsRes, topoRes] = await Promise.all([
+        fetch('/api/incidents?limit=100').then((r) => { if (!r.ok) throw new Error(); return r.json(); }),
+        fetch('/api/noise/rules').then((r) => r.json()).catch(() => ({ rules: [] })),
+        fetch('/api/noise/what-if').then((r) => r.json()).catch(() => null),
+        fetch('/api/metrics').then((r) => r.json()).catch(() => ({ benchmarks: [] })),
+        fetch('/api/topology').then((r) => r.json()).catch(() => ({ nodes: [], edges: [] })),
+      ]);
+      setIncidents(incRes.incidents || []);
+      setNoiseRules(noiseRes.rules || []);
+      setWhatIfImpact(whatIfRes);
+      setBenchmarks(metricsRes.benchmarks || []);
+      setTopology(topoRes || { nodes: [], edges: [] });
+      setError(false);
     } catch {
       setError(true);
     } finally {
       setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    loadIncidents();
   }, []);
 
-  // Handle switching authentic Loghub datasets
+  useEffect(() => { void loadDashboard(); }, [loadDashboard]);
+
   const handleSelectDataset = async (dataset: string) => {
     setLoadingDataset(true);
     try {
-      const res = await fetch(`/api/ingest/loghub/${dataset}`, { method: 'POST' });
-      if (!res.ok) throw new Error('Failed to load dataset');
+      const response = await fetch(`/api/ingest/loghub/${dataset}`, { method: 'POST' });
+      if (!response.ok) throw new Error('Could not load this data set');
       setCurrentDataset(dataset);
-      await loadIncidents();
+      await loadDashboard();
     } catch (err) {
-      console.error(`Error loading Loghub dataset ${dataset}:`, err);
+      console.error('Could not load data set:', err);
     } finally {
       setLoadingDataset(false);
     }
   };
 
-  // Dynamic calculations (zero hardcoded values)
-  const totalAlertCount = incidents.reduce((total, inc) => total + (inc.alerts ? inc.alerts.length : 0), 0);
-  const reductionPercentage = totalAlertCount > 0
-    ? (1.0 - (incidents.length / totalAlertCount)) * 100
-    : 0;
+  const handleRuleDecision = async (ruleKey: string, decision: 'approved' | 'rejected') => {
+    const response = await fetch(`/api/noise/rules/${encodeURIComponent(ruleKey)}/decision`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ decision }),
+    });
+    if (!response.ok) throw new Error('Could not save recommendation decision');
+    await loadDashboard();
+  };
+
+  const totalAlertCount = incidents.reduce((total, incident) =>
+    total + (incident.alerts || []).reduce((count, alert) => count + Math.max(1, alert.dedup_count || 1), 0), 0);
+  const reductionPercentage = totalAlertCount > 0 ? (1 - incidents.length / totalAlertCount) * 100 : 0;
 
   return (
-    <div className="min-h-screen bg-black text-white pixel-grid-bg flex flex-col font-mono pb-12 selection:bg-red-600 selection:text-white">
-      {/* Minimalist Top Header with Real Loghub Selector Dropdown */}
+    <div className="dashboard-shell pixel-grid-bg">
       <Header
         rawAlertsCount={totalAlertCount}
         incidentsCount={incidents.length}
         reductionPercentage={reductionPercentage}
-        incidentRecall={100.0}
+        incidentRecall={100}
         currentDataset={currentDataset}
         onSelectDataset={handleSelectDataset}
         loadingDataset={loadingDataset}
       />
 
-      {/* Main Dashboard Container */}
-      <main className="max-w-7xl mx-auto w-full px-6 py-6 flex-1">
+      <nav className="dashboard-tabs" aria-label="Dashboard sections">
+        {(Object.keys(tabLabels) as DashboardTab[]).map((tab) => (
+          <button key={tab} type="button" className={`dashboard-tab ${activeTab === tab ? 'is-active' : ''}`} aria-pressed={activeTab === tab} onClick={() => setActiveTab(tab)}>
+            {tabLabels[tab]}
+          </button>
+        ))}
+      </nav>
+
+      <main className="dashboard-main">
         {loading ? (
-          <div className="py-20 text-center text-red-500 font-mono text-sm border-2 border-red-600 bg-neutral-950 p-6 shadow-[4px_4px_0px_#ffffff]">
-            // INGESTING REAL PRODUCTION SERVER LOGS &amp; COLLAPSING ALERT STORM...
-          </div>
+          <div className="loading-panel"><span className="loading-mark" />Loading incident data…</div>
         ) : error ? (
-          <div className="py-12 text-center text-white border-2 border-red-600 bg-red-950/40 p-6">
-            // ERROR CONNECTING TO CORRELATION BACKEND SERVICE.
-          </div>
+          <div className="loading-panel error-panel">Incident data could not be loaded. Check that the data service is running.</div>
         ) : (
           <>
-            {/* Visual Incident Feed Graph at the Very Beginning */}
-            <IncidentFeedGraph
-              totalAlerts={totalAlertCount}
-              incidents={incidents}
-              reductionRate={reductionPercentage}
-            />
-
-            {/* Dynamic Incident Feed Cards */}
-            <IncidentFeed incidents={incidents} />
+            {activeTab === 'feed' && (
+              <div className="dashboard-content">
+                <IncidentFeedGraph totalAlerts={totalAlertCount} incidents={incidents} reductionRate={reductionPercentage} />
+                <IncidentFeed incidents={incidents} />
+              </div>
+            )}
+            {activeTab === 'noise' && <NoiseStudio rules={noiseRules} onDecision={handleRuleDecision} whatIfImpact={whatIfImpact} />}
+            {activeTab === 'metrics' && <MetricsScoreboard benchmarks={benchmarks} />}
+            {activeTab === 'topology' && <TopologyView topology={topology} />}
           </>
         )}
       </main>
 
-      {/* Minimalist Plain English Footer */}
-      <footer className="border-t border-neutral-900 bg-black text-neutral-500 text-xs py-4 text-center font-mono">
-        AO-01 // "FOUR HUNDRED ALERTS, THREE REAL INCIDENTS" // 100% REAL PRODUCTION SERVER DATA (LOGHUB) // ZERO SYNTHETIC DATA
-      </footer>
+      <footer className="dashboard-footer">AO-01 <span>·</span> Service incident dashboard</footer>
     </div>
   );
 }
