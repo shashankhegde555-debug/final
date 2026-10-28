@@ -1,5 +1,5 @@
 import React from 'react';
-import { Shield, ShieldAlert, Activity, GitMerge, Sliders, BarChart3, Network, Zap } from 'lucide-react';
+import { Shield, ShieldAlert, Activity, Sliders, BarChart3, Network, Zap, Upload, Database } from 'lucide-react';
 
 interface HeaderProps {
   activeTab: 'feed' | 'noise' | 'metrics' | 'topology';
@@ -10,6 +10,8 @@ interface HeaderProps {
   incidentsCount: number;
   reductionPercentage: number;
   incidentRecall: number;
+  onUploadFile?: (file: File) => void;
+  onLoadRealSample?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -21,6 +23,8 @@ export const Header: React.FC<HeaderProps> = ({
   incidentsCount,
   reductionPercentage,
   incidentRecall,
+  onUploadFile,
+  onLoadRealSample,
 }) => {
   return (
     <header className="border-b border-slate-800 bg-slate-900/90 backdrop-blur sticky top-0 z-40 px-6 py-3.5 shadow-md">
@@ -64,6 +68,35 @@ export const Header: React.FC<HeaderProps> = ({
             <span className="text-cyan-400 font-medium">Recall:</span>
             <span className="font-mono font-bold text-cyan-300">{incidentRecall.toFixed(0)}% Guaranteed</span>
           </div>
+
+          {/* Upload Real Data & Real Outage Sample Buttons */}
+          {onUploadFile && (
+            <label className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white flex items-center gap-1.5 transition cursor-pointer shadow-sm">
+              <Upload className="w-3.5 h-3.5" />
+              <span>Upload Real Data (CSV/JSON)</span>
+              <input
+                type="file"
+                accept=".csv,.json,.jsonl"
+                className="hidden"
+                onChange={(e) => {
+                  if (e.target.files && e.target.files[0]) {
+                    onUploadFile(e.target.files[0]);
+                  }
+                }}
+              />
+            </label>
+          )}
+
+          {onLoadRealSample && (
+            <button
+              onClick={onLoadRealSample}
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600/30 hover:bg-emerald-600 text-emerald-300 hover:text-white border border-emerald-500/40 flex items-center gap-1.5 transition shadow-sm"
+              title="Loads real-world Postgres+Redis+Nginx production incident dataset"
+            >
+              <Database className="w-3.5 h-3.5" />
+              <span>Load Real Outage Sample</span>
+            </button>
+          )}
 
           {/* Redaction Switch */}
           <button

@@ -120,6 +120,98 @@ class DatasetLoader:
 
         return self.raw_alerts
 
+    def infer_topology_from_alerts(self, alerts: List[Alert]) -> nx.DiGraph:
+        """
+        Auto-generates a service dependency graph from real operational alert logs when no topology.json is supplied.
+        Infers tier from service names (db/redis -> datastore, gateway/ingress -> gateway, etc.)
+        and builds directed edges between co-alerting services based on lead-time order.
+        """
+        self.graph = nx.DiGraph()
+        self.services_dict.clear()
+
+        unique_services = sorted(list(set(a.service for a in alerts if a.service)))
+        for svc in unique_services:
+            tier = "service"
+            svc_lower = svc.lower()
+            if any(k in svc_lower for k in ["db", "database", "sql", "postgres", "mysql", "redis", "mongo", "kafka", "elastic"]):
+                tier = "datastore"
+            elif any(k in svc_lower for k in ["gateway", "ingress", "proxy", "router", "bff", "nginx"]):
+                tier = "gateway"
+            elif any(k in svc_lower for k in ["edge", "cdn", "dns", "ssl", "waf"]):
+                tier = "edge"
+            elif any(k in svc_lower for k in ["stripe", "aws", "cloud", "api", "smtp", "twilio"]):
+                tier = "thirdparty"
+
+            node = ServiceNode(service=svc, tier=tier, application=f"{svc.split('-')[0]}-app", dependencies=[])
+            self.services_dict[svc] = node
+            self.graph.add_node(svc, tier=tier, application=node.application)
+
+        # Infer directed edges from sequential alert bursts
+        sorted_alerts = sorted(alerts, key=lambda a: a.timestamp_epoch)
+        for i in range(len(sorted_alerts) - 1):
+            a1 = sorted_alerts[i]
+            a2 = sorted_alerts[i + 1]
+            if a1.service != a2.service and (a2.timestamp_epoch - a1.timestamp_epoch) <= 300:
+                # Directed edge: a2 likely depends on a1 (a1 fired earlier)
+                if not self.graph.has_edge(a2.service, a1.service):
+                    self.graph.add_edge(a2.service, a1.service)
+                    if a1.service not in self.services_dict[a2.service].dependencies:
+                        self.services_dict[a2.service].dependencies.append(a1.service)
+
+        return self.graph
+
+    def load_from_raw_records(self, records: List[Dict[str, Any]]) -> List[Alert]:
+        """Maps any list of dictionaries (from CSV or JSON) into canonical Alert models."""
+        self.raw_alerts = []
+        for idx, item in enumerate(records):
+            # Column detection
+            a_id = item.get("alert_id") or item.get("id") or item.get("alertId") or f"ALT-REAL-{idx+1:05d}"
+            ts = item.get("timestamp") or item.get("time") or item.get("@timestamp") or item.get("datetime") or datetime.now(timezone.utc).isoformat()
+
+            if "timestamp_epoch" in item:
+                epoch = float(item["timestamp_epoch"])
+            else:
+                try:
+                    dt = datetime.fromisoformat(str(ts).replace("Z", "+00:00"))
+                    epoch = dt.timestamp()
+                except Exception:
+                    epoch = float(idx * 60)
+
+            src = str(item.get("source") or item.get("tool") or item.get("monitor") or "server-log")
+            svc = str(item.get("service") or item.get("server") or item.get("app") or item.get("component") or item.get("process") or item.get("host") or item.get("instance") or "core-service")
+            sev = str(item.get("severity") or item.get("level") or item.get("priority") or "warning").lower()
+            name = str(item.get("name") or item.get("rule") or item.get("alertname") or item.get("title") or item.get("event") or "ServerWarning")
+            msg = str(item.get("message") or item.get("description") or item.get("summary") or item.get("text") or name)
+            host = item.get("host") or item.get("node") or item.get("instance") or item.get("hostname") or item.get("server")
+            cust = item.get("customer_ref") or item.get("tenant_id") or item.get("customer_id")
+            inc_id = item.get("incident_id") or item.get("ground_truth_incident")
+
+            rk = build_rule_key(src, svc, name)
+            alert = Alert(
+                alert_id=str(a_id),
+                timestamp=str(ts),
+                timestamp_epoch=epoch,
+                source=src,
+                service=svc,
+                severity=sev,
+                name=name,
+                message=msg,
+                host=str(host) if host else None,
+                customer_ref=str(cust) if cust else None,
+                incident_id=str(inc_id) if inc_id else None,
+                rule_key=rk,
+                first_seen=str(ts),
+                last_seen=str(ts)
+            )
+            self.raw_alerts.append(alert)
+
+        # Always ensure topology contains all services from newly loaded alerts
+        unknown_services = set(a.service for a in self.raw_alerts) - set(self.services_dict.keys())
+        if not self.services_dict or len(unknown_services) > 0:
+            self.infer_topology_from_alerts(self.raw_alerts)
+
+        return self.raw_alerts
+
     def load_incidents(self, filepath: Optional[str] = None) -> List[Dict[str, Any]]:
         path = filepath or os.path.join(self.data_dir, "incidents.json")
         if os.path.exists(path):

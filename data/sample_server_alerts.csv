@@ -1,0 +1,10 @@
+timestamp,server,alertname,severity,message
+2026-10-28T18:00:10Z,production-postgres-db,PostgresActiveConnectionsHigh,critical,"FATAL: remaining connection slots are reserved for non-replication superuser connections (max_connections=200)"
+2026-10-28T18:00:35Z,production-postgres-db,QueryExecutionQueueBacklog,critical,"Pending client query queue length > 450 waiting on db connection"
+2026-10-28T18:01:12Z,auth-api,DatabasePoolAcquisitionTimeout,critical,"Knex: Timeout acquiring a connection from pool after 30000ms"
+2026-10-28T18:01:25Z,billing-api,TransactionRollbackSpike,critical,"Failed to persist customer invoice: Connection terminated unexpectedly"
+2026-10-28T18:01:50Z,order-processor,HTTP500InternalErrorRate,high,"500 Internal Server Error returned to checkout client: SequelizeConnectionError"
+2026-10-28T18:02:15Z,api-gateway,Nginx504GatewayTimeoutSurge,critical,"Upstream response timed out (110: Connection timed out) while reading response header from upstream"
+2026-10-28T18:02:40Z,customer-status-page,PublicSyntheticCheckoutFlowFailed,critical,"HTTP POST /v1/checkout failed with status 504 Gateway Timeout from edge probe"
+2026-10-28T17:45:00Z,srv-worker-01,DiskSpaceUsageHigh,warning,"Mount point /var/log is at 88% capacity"
+2026-10-28T17:50:00Z,srv-redis-cache,RedisHighMemoryUsage,warning,"Memory usage reached 82% of maxmemory limit (eviction policy: allkeys-lru)"

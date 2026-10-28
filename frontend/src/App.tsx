@@ -143,6 +143,64 @@ export function App() {
     setReplayAlertCount(1500);
   };
 
+  const handleUploadFile = async (file: File) => {
+    setLoading(true);
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+      const res = await fetch('/api/ingest/upload', {
+        method: 'POST',
+        body: formData,
+      }).then((r) => r.json());
+
+      const [incRes, noiseRes, whatIfRes, metricsRes, topoRes] = await Promise.all([
+        fetch('/api/incidents?limit=100').then((r) => r.json()),
+        fetch('/api/noise/rules').then((r) => r.json()),
+        fetch('/api/noise/what-if').then((r) => r.json()),
+        fetch('/api/metrics').then((r) => r.json()),
+        fetch('/api/topology').then((r) => r.json()),
+      ]);
+
+      setIncidents(incRes.incidents || []);
+      setNoiseRules(noiseRes.rules || []);
+      setWhatIfImpact(whatIfRes || null);
+      setBenchmarks(metricsRes.benchmarks || []);
+      setTopology(topoRes || { nodes: [], edges: [] });
+      setReplayAlertCount(res.alerts_loaded || incRes.total || 100);
+      alert(`Loaded real data: ${res.alerts_loaded} alerts, ${res.incidents_created} correlated incidents, ${res.services_discovered} services mapped.`);
+    } catch (err) {
+      console.error('Error uploading real server data:', err);
+      alert('Failed to process uploaded file.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLoadRealSample = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/ingest/sample-real', { method: 'POST' }).then((r) => r.json());
+      const [incRes, noiseRes, whatIfRes, metricsRes, topoRes] = await Promise.all([
+        fetch('/api/incidents?limit=100').then((r) => r.json()),
+        fetch('/api/noise/rules').then((r) => r.json()),
+        fetch('/api/noise/what-if').then((r) => r.json()),
+        fetch('/api/metrics').then((r) => r.json()),
+        fetch('/api/topology').then((r) => r.json()),
+      ]);
+
+      setIncidents(incRes.incidents || []);
+      setNoiseRules(noiseRes.rules || []);
+      setWhatIfImpact(whatIfRes || null);
+      setBenchmarks(metricsRes.benchmarks || []);
+      setTopology(topoRes || { nodes: [], edges: [] });
+      setReplayAlertCount(res.alerts_loaded || 10);
+    } catch (err) {
+      console.error('Error loading real sample:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Slice displayed incidents proportional to replay progression
   const displayedIncidents = incidents.slice(
     0,
@@ -161,6 +219,8 @@ export function App() {
         incidentsCount={displayedIncidents.length}
         reductionPercentage={53.3}
         incidentRecall={100.0}
+        onUploadFile={handleUploadFile}
+        onLoadRealSample={handleLoadRealSample}
       />
 
       {/* Main Body */}
