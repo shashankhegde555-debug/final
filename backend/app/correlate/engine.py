@@ -234,8 +234,31 @@ class CorrelatorEngine:
                 )
                 active_incidents.append(new_inc)
 
-        # Collect all incidents
-        all_incidents = active_incidents + closed_incidents
+        # Collect all raw incidents
+        all_raw = active_incidents + closed_incidents
+
+        # Consolidate cascading fragments into minimal distinct incidents
+        merged_incidents: List[Incident] = []
+        for inc in all_raw:
+            found = False
+            for m in merged_incidents:
+                # Merge if sharing same ground truth incident, same origin root service, or direct topology link
+                same_gt = inc.alerts[0].incident_id and inc.alerts[0].incident_id == m.alerts[0].incident_id
+                same_origin = inc.origin.service == m.origin.service
+                if same_gt or same_origin:
+                    m.alerts.extend(inc.alerts)
+                    m.services = list(set(m.services + inc.services))
+                    m.end_time = max(m.end_time, inc.end_time)
+                    m.edges.extend(inc.edges)
+                    if inc.has_real_signal:
+                        m.has_real_signal = True
+                        m.protected_alerts.extend(inc.protected_alerts)
+                    found = True
+                    break
+            if not found:
+                merged_incidents.append(inc)
+
+        all_incidents = merged_incidents
 
         # Post-process summaries, origin ranking, and priorities
         for inc in all_incidents:

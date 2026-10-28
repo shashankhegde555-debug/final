@@ -28,7 +28,7 @@ def build_rule_key(source: str, service: str, name: str) -> str:
     return f"{source.lower().strip()}:{service.lower().strip()}:{norm}"
 
 class DatasetLoader:
-    def __init__(self, data_dir: str = "data/synthetic"):
+    def __init__(self, data_dir: str = "data/raw"):
         self.data_dir = data_dir
         self.graph = nx.DiGraph()
         self.services_dict: Dict[str, ServiceNode] = {}
