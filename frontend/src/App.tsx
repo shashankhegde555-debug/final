@@ -30,11 +30,21 @@ export function App() {
   const loadDashboard = useCallback(async () => {
     try {
       const [incRes, noiseRes, whatIfRes, metricsRes, topoRes] = await Promise.all([
-        fetch('/api/incidents?limit=100').then((r) => { if (!r.ok) throw new Error(); return r.json(); }),
-        fetch('/api/noise/rules').then((r) => r.json()).catch(() => ({ rules: [] })),
-        fetch('/api/noise/what-if').then((r) => r.json()).catch(() => null),
-        fetch('/api/metrics').then((r) => r.json()).catch(() => ({ benchmarks: [] })),
-        fetch('/api/topology').then((r) => r.json()).catch(() => ({ nodes: [], edges: [] })),
+        fetch('/api/incidents?limit=100')
+          .then((r) => { if (!r.ok) throw new Error(); return r.json(); })
+          .catch(() => fetch('/data_snapshot/incidents.json').then((r) => r.json())),
+        fetch('/api/noise/rules')
+          .then((r) => { if (!r.ok) throw new Error(); return r.json(); })
+          .catch(() => fetch('/data_snapshot/noise_rules.json').then((r) => r.json()).catch(() => ({ rules: [] }))),
+        fetch('/api/noise/what-if')
+          .then((r) => { if (!r.ok) throw new Error(); return r.json(); })
+          .catch(() => fetch('/data_snapshot/what_if.json').then((r) => r.json()).catch(() => null)),
+        fetch('/api/metrics')
+          .then((r) => { if (!r.ok) throw new Error(); return r.json(); })
+          .catch(() => fetch('/data_snapshot/metrics.json').then((r) => r.json()).catch(() => ({ benchmarks: [] }))),
+        fetch('/api/topology')
+          .then((r) => { if (!r.ok) throw new Error(); return r.json(); })
+          .catch(() => fetch('/data_snapshot/topology.json').then((r) => r.json()).catch(() => ({ nodes: [], edges: [] }))),
       ]);
       setIncidents(incRes.incidents || []);
       setNoiseRules(noiseRes.rules || []);
@@ -59,20 +69,28 @@ export function App() {
       setCurrentDataset(dataset);
       await loadDashboard();
     } catch (err) {
-      console.error('Could not load data set:', err);
+      console.warn('Dataset switch on standalone preview:', err);
+      setCurrentDataset(dataset);
     } finally {
       setLoadingDataset(false);
     }
   };
 
   const handleRuleDecision = async (ruleKey: string, decision: 'approved' | 'rejected') => {
-    const response = await fetch(`/api/noise/rules/${encodeURIComponent(ruleKey)}/decision`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ decision }),
-    });
-    if (!response.ok) throw new Error('Could not save recommendation decision');
-    await loadDashboard();
+    try {
+      const response = await fetch(`/api/noise/rules/${encodeURIComponent(ruleKey)}/decision`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ decision }),
+      });
+      if (!response.ok) throw new Error('Could not save recommendation decision');
+      await loadDashboard();
+    } catch {
+      // Local state update when deployed without live backend
+      setNoiseRules((prev) =>
+        prev.map((r) => (r.rule_key === ruleKey ? { ...r, recommendation: decision === 'approved' ? 'suppress' : 'keep' } : r))
+      );
+    }
   };
 
   const totalAlertCount = incidents.reduce((total, incident) =>
