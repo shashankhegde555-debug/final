@@ -4,97 +4,79 @@ from typing import Dict, Any, Optional
 from backend.app.config import config
 from backend.app.models import Incident
 
-# Catalogue of 18 server problem archetypes and their curated water-pipe analogies
+# Catalogue of 18 server problem archetypes and concise engineering descriptions
 SERVER_ROOT_CAUSES_CATALOGUE = {
     "database_slowdown": {
-        "title": "Database Slowdown",
-        "analogy": "The main water tank is clogged, so every tap in the building runs slowly.",
-        "description": "The database storage or query engine is blocked, causing CPU spikes on dependent services waiting on connections, slow API responses, and cascading gateway timeouts."
+        "title": "Database Query Bottleneck / Slowdown",
+        "description": "The database query engine or storage layer is experiencing excessive lock contention or table scan delays, causing connection pool starvation and high latency across all client services."
     },
     "memory_leak_oom": {
         "title": "Out of Memory (Memory Leak)",
-        "analogy": "A slow leak that gradually fills the basement over days until the equipment floods.",
-        "description": "A service steadily consumes RAM without releasing it, eventually getting killed by the OS OOM killer and triggering restart loops."
+        "description": "Application memory usage progressively grew until hitting the container memory limit, triggering an OS OOM kill and restarting the service repeatedly."
     },
     "disk_full": {
-        "title": "Disk Full",
-        "analogy": "The drain pipe is blocked and the tub overflows.",
-        "description": "Volume storage reached 100% capacity, preventing database WAL writes, log output, and transaction commits."
+        "title": "Disk Volume Exhaustion",
+        "description": "The local volume reached 100% disk capacity, causing the database to reject write operations, abort transaction logs, and cascade write errors downstream."
     },
     "traffic_spike": {
-        "title": "Traffic Spike (Overload)",
-        "analogy": "Everyone in the building flushes the toilet at the exact same second.",
-        "description": "A sudden surge in external requests saturates edge ingress, causing thread pool contention and queue backlogs across downstream microservices."
+        "title": "External Traffic Spike / Overload",
+        "description": "A sudden burst in incoming client request volume saturated the edge ingress layer, causing thread pool contention and queue backlogs across downstream microservices."
     },
     "bad_deployment": {
-        "title": "Bad Deployment / Release",
-        "analogy": "A plumber replaced a pipe but installed the wrong diameter fitting.",
-        "description": "A freshly released software version introduced a breaking API schema mismatch or unhandled exception immediately after rollout."
+        "title": "Faulty Release / Deployment Bug",
+        "description": "A newly deployed software release introduced a breaking schema incompatibility or unhandled runtime exception, immediately triggering a high 5xx error rate."
     },
     "network_partition": {
-        "title": "Network Partition / Connectivity Failure",
-        "analogy": "A pipe joint cracked, preventing water from reaching the upper floors.",
-        "description": "Network packet loss, routing drops, or firewall drops prevent services from communicating, triggering connection timeouts."
+        "title": "Network Partition / Connectivity Loss",
+        "description": "Intermittent routing loss, packet drops, or firewall drops disrupted TCP handshakes between services, resulting in cascading connection timeouts."
     },
     "dns_failure": {
         "title": "DNS Name Resolution Failure",
-        "analogy": "The building directory is erased, so nobody knows which room to deliver mail to.",
-        "description": "Core DNS cluster is dropping lookups, resulting in 'Host Not Found' errors across dependent client services."
+        "description": "The internal DNS resolver cluster is dropping address queries, resulting in 'Host Not Found' exceptions across services attempting to resolve internal endpoints."
     },
     "expired_certificate": {
         "title": "Expired SSL/TLS Certificate",
-        "analogy": "The electronic master keycard expired, instantly locking every security door.",
-        "description": "The TLS certificate expired, causing client handshakes and mTLS connections between services to be rejected."
+        "description": "The server TLS certificate expired, causing client TLS handshakes and mutual TLS (mTLS) inter-service communication to be rejected immediately."
     },
     "third_party_outage": {
-        "title": "Third-Party Dependency Outage",
-        "analogy": "The municipal city water supply is shut off at the street main.",
-        "description": "An external API provider (e.g. Stripe, Twilio) is returning HTTP 5xx errors or timing out, halting internal flows."
+        "title": "Third-Party API Dependency Outage",
+        "description": "An external provider API is returning HTTP 503 or timing out, blocking internal billing or dispatch pipelines that synchronously depend on it."
     },
     "connection_pool_exhaustion": {
         "title": "Connection Pool Exhaustion",
-        "analogy": "All the taps are open simultaneously, dropping water pressure to an unusable trickle.",
-        "description": "All available database/cache connection slots are exhausted, queuing incoming queries until clients timeout."
+        "description": "All available connection slots in the shared pool are occupied, forcing incoming requests into an overflow backlog until timeout thresholds are breached."
     },
     "queue_backlog": {
-        "title": "Queue Backlog",
-        "analogy": "The factory conveyor belt jams and packages pile up on the floor.",
-        "description": "Worker throughput is lower than ingestion rate, causing message age and worker memory usage to climb."
+        "title": "Message Queue Backlog",
+        "description": "Incoming message ingestion rate exceeds worker consumer processing throughput, driving up queue latency, message age, and worker memory consumption."
     },
     "cache_failure": {
-        "title": "Cache Cluster Failure",
-        "analogy": "The express highway is blocked, forcing all city traffic onto narrow residential streets.",
-        "description": "The in-memory Redis/Memcached tier failed or experienced high eviction, routing 100% of read traffic to the slow underlying database."
+        "title": "In-Memory Cache Cluster Failure",
+        "description": "The caching cluster suffered shard eviction or an outage, forcing 100% of read queries directly onto the underlying primary database and overloading it."
     },
     "crash_loop": {
         "title": "Crash Loop Backoff",
-        "analogy": "A faulty water pump kicks on, sputters, and shuts down every thirty seconds.",
-        "description": "Application container fails health checks upon boot and repeatedly restarts."
+        "description": "The containerized process repeatedly crashes immediately following startup health checks, causing transient availability drops and request retries."
     },
     "cpu_overload": {
-        "title": "CPU Overload (Runaway Process)",
-        "analogy": "One industrial tap monopolizes the entire building's water pressure.",
-        "description": "A single unoptimized compute thread consumes 100% CPU, starving neighboring services on the same host."
+        "title": "CPU Overload / Runaway Process",
+        "description": "A runaway thread or intensive computation consumed 100% CPU capacity on the host, starving co-located services of compute resources."
     },
     "configuration_mistake": {
-        "title": "Configuration Mistake",
-        "analogy": "Someone turned the wrong valve by hand and shut off the cold line.",
-        "description": "An operator modified an environment variable or rate limit, causing sudden errors on one specific service."
+        "title": "Configuration / Flag Misconfiguration",
+        "description": "An erroneous parameter, bad environment variable, or strict rate limit was applied by operators, causing immediate operational failure on this component."
     },
     "hardware_failure": {
-        "title": "Hardware / Node Failure",
-        "analogy": "A main pump motor burns out completely.",
-        "description": "A physical server or hypervisor crashed, triggering pod rescheduling and temporary connection blips."
+        "title": "Hardware / Node Eviction",
+        "description": "The underlying virtual machine or physical node suffered a hardware failure, forcing pod rescheduling and temporary connectivity disruption."
     },
     "retry_storm": {
-        "title": "Retry Storm",
-        "analogy": "People yank on a stuck door harder and harder until the handle snaps.",
-        "description": "Clients aggressively retry failed requests without exponential backoff, multiplying traffic on already struggling services."
+        "title": "Retry Storm Contention",
+        "description": "Downstream clients synchronously retried failed requests without exponential backoff or jitter, multiplying total request load onto degraded backends."
     },
     "scheduled_job_collision": {
-        "title": "Scheduled Job Collision",
-        "analogy": "The washing machine, dishwasher, and sprinkler system all start at 2:00 AM sharp.",
-        "description": "A heavy maintenance job coincides with operational load, causing transient CPU/IO spikes (often benign background noise)."
+        "title": "Scheduled Heavy Job Collision",
+        "description": "A heavy scheduled batch report or database backup ran during peak production traffic hours, producing temporary resource contention and I/O saturation."
     }
 }
 
@@ -104,7 +86,6 @@ class LLMSummarizer:
         self.model = model
 
     def infer_root_cause_type(self, incident: Incident) -> str:
-        """Determines the closest archetype among the 18 root causes based on incident alerts."""
         text_corpus = " ".join([a.name + " " + a.message for a in incident.alerts]).lower()
         origin_svc = incident.origin.service.lower()
 
@@ -136,32 +117,33 @@ class LLMSummarizer:
         archetype_key = self.infer_root_cause_type(incident)
         archetype = SERVER_ROOT_CAUSES_CATALOGUE.get(archetype_key, SERVER_ROOT_CAUSES_CATALOGUE["database_slowdown"])
 
-        # Curated deterministic fallback
-        water_pipe = archetype["analogy"]
+        # Curated deterministic root cause brief
         diagnostic = (
-            f"Likely Root Cause: {archetype['title']} on {incident.origin.service}. "
+            f"Root Cause: {archetype['title']} on '{incident.origin.service}'. "
             f"{archetype['description']} "
-            f"Cascaded to {len(incident.services)} dependent services: {', '.join(incident.services[:5])}."
+            f"This impacted {len(incident.services)} dependent services: {', '.join(incident.services[:5])}."
         )
 
-        # Try querying local 2B model if enabled
+        # Query local 2B model for brief technical root-cause description
         if config.enable_llm_explanations:
             prompt = (
-                f"You are an on-call site reliability engineering assistant. "
-                f"We detected an alert storm involving {len(incident.alerts)} alerts across {len(incident.services)} services. "
-                f"Our deterministic graph-aware algorithm identified '{incident.origin.service}' as the probable root cause "
-                f"with {int(incident.origin.confidence*100)}% confidence. "
-                f"Problem archetype: {archetype['title']}. "
-                f"Alert samples: {[a.name for a in incident.alerts[:3]]}. "
-                f"Provide a 2-sentence plain-English executive summary for the on-call engineer, "
-                f"including this water pipe analogy: '{water_pipe}'."
+                f"You are a senior site reliability engineer. "
+                f"We detected an alert storm of {len(incident.alerts)} alerts across {len(incident.services)} services. "
+                f"Our deterministic graph analysis identified '{incident.origin.service}' as the root cause origin "
+                f"(confidence: {int(incident.origin.confidence*100)}%). "
+                f"Failure category: {archetype['title']}. "
+                f"Alert names: {[a.name for a in incident.alerts[:3]]}. "
+                f"Write a concise, 2-sentence technical root-cause brief description. "
+                f"Directly explain: 1) What failed on '{incident.origin.service}', and "
+                f"2) Why it is overloading downstream services. "
+                f"Do NOT use metaphors or analogies; be direct, technical, and concise."
             )
             try:
                 payload = json.dumps({
                     "model": self.model,
                     "prompt": prompt,
                     "stream": False,
-                    "options": {"temperature": 0.2, "num_predict": 120}
+                    "options": {"temperature": 0.2, "num_predict": 100}
                 }).encode("utf-8")
 
                 req = urllib.request.Request(
@@ -173,15 +155,15 @@ class LLMSummarizer:
                     res_data = json.loads(response.read().decode("utf-8"))
                     ai_text = res_data.get("response", "").strip()
                     if ai_text:
-                        diagnostic = f"[AI Summary (Advisory via 2B model)] {ai_text}"
+                        diagnostic = f"[2B Model Brief] {ai_text}"
             except Exception:
-                # Deterministic fallback preserved
-                diagnostic = f"[Deterministic Summary] {diagnostic}"
+                diagnostic = f"[Deterministic Brief] {diagnostic}"
 
         return {
             "root_cause_type": archetype_key,
             "root_cause_title": archetype["title"],
-            "water_pipe_analogy": water_pipe,
+            "brief_description": diagnostic,
+            "water_pipe_analogy": diagnostic,
             "diagnostic_summary": diagnostic
         }
 

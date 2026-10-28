@@ -113,11 +113,11 @@ export const IncidentFeed: React.FC<IncidentFeedProps> = ({
                     {inc.summary}
                   </h3>
 
-                  {/* Water pipe preview */}
-                  {inc.water_pipe_analogy && (
-                    <div className="flex items-center gap-1.5 text-xs text-blue-300/90 italic">
-                      <Waves className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-                      <span className="truncate">"{inc.water_pipe_analogy}"</span>
+                  {/* Brief Root-Cause Preview */}
+                  {(inc.ai_summary || inc.water_pipe_analogy) && (
+                    <div className="flex items-center gap-1.5 text-xs text-slate-300">
+                      <span className="font-semibold text-indigo-400">Diagnosis:</span>
+                      <span className="truncate text-slate-300">{inc.ai_summary || inc.water_pipe_analogy}</span>
                     </div>
                   )}
                 </div>

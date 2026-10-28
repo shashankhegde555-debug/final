@@ -72,25 +72,25 @@ export const IncidentDetailModal: React.FC<IncidentDetailModalProps> = ({
           </button>
         </div>
 
-        {/* 2B LLM Root-Cause & Water Pipe Analogy Card */}
-        <div className="mx-6 my-4 p-4 rounded-xl bg-gradient-to-r from-blue-950/40 via-indigo-950/30 to-purple-950/40 border border-indigo-500/30 shadow-md">
+        {/* 2B LLM Root-Cause Brief Description Card */}
+        <div className="mx-6 my-4 p-4 rounded-xl bg-gradient-to-r from-slate-950 via-indigo-950/40 to-slate-950 border border-indigo-500/30 shadow-md">
           <div className="flex items-start justify-between gap-4">
             <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-xl bg-blue-500/20 border border-blue-500/40 flex items-center justify-center shrink-0 text-blue-400 shadow-inner">
-                <Waves className="w-5 h-5" />
+              <div className="w-10 h-10 rounded-xl bg-indigo-500/20 border border-indigo-500/40 flex items-center justify-center shrink-0 text-indigo-400 shadow-inner">
+                <BrainCircuit className="w-5 h-5" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-blue-400 uppercase tracking-wider">Water Pipe Analogy:</span>
+                  <span className="text-xs font-bold text-indigo-400 uppercase tracking-wider">Root-Cause Brief Description:</span>
                   <span className="text-[11px] font-semibold text-purple-300 bg-purple-500/10 px-2 py-0.5 rounded border border-purple-500/20">
                     2B Parameter Model Diagnosis
                   </span>
                 </div>
-                <p className="text-sm font-semibold text-slate-100 mt-1 italic">
-                  "{incident.water_pipe_analogy || 'A main valve failed upstream, causing pressure loss across all building branches.'}"
+                <p className="text-sm font-semibold text-slate-100 mt-1 leading-snug">
+                  {incident.ai_summary || incident.water_pipe_analogy || 'Deterministic graph origin analysis identified failure on origin node.'}
                 </p>
-                <p className="text-xs text-slate-300 mt-1.5 leading-relaxed">
-                  {incident.ai_summary || 'Probable root cause identified by deterministic graph topology blast radius.'}
+                <p className="text-[11px] text-slate-400 mt-1 font-mono">
+                  Probable Origin: <strong className="text-emerald-400">{incident.origin.service}</strong> (Confidence: {(incident.origin.confidence * 100).toFixed(0)}%) • Affecting {incident.services.length} downstream microservices
                 </p>
               </div>
             </div>
@@ -101,7 +101,7 @@ export const IncidentDetailModal: React.FC<IncidentDetailModalProps> = ({
               className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white flex items-center gap-1.5 transition shadow-sm disabled:opacity-50"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isGeneratingLLM ? 'animate-spin' : ''}`} />
-              <span>{isGeneratingLLM ? 'Consulting 2B Model...' : 'Re-diagnose via 2B LLM'}</span>
+              <span>{isGeneratingLLM ? 'Consulting 2B Model...' : 'Re-summarize via 2B LLM'}</span>
             </button>
           </div>
         </div>

@@ -69,16 +69,18 @@ def run_full_correlation():
     else:
         state.incidents = raw_incidents
 
-    # Instant assignment of curated archetype analogies for all incidents
+    # Instant assignment of curated root cause brief descriptions
     for inc in state.incidents:
         archetype_key = llm_summarizer.infer_root_cause_type(inc)
         from backend.app.explain.llm_summarizer import SERVER_ROOT_CAUSES_CATALOGUE
         archetype = SERVER_ROOT_CAUSES_CATALOGUE.get(archetype_key, SERVER_ROOT_CAUSES_CATALOGUE["database_slowdown"])
-        inc.water_pipe_analogy = archetype["analogy"]
-        inc.ai_summary = (
-            f"[Deterministic Summary] Likely Root Cause: {archetype['title']} on {inc.origin.service}. "
-            f"{archetype['description']}"
+        desc = (
+            f"Root Cause: {archetype['title']} on '{inc.origin.service}'. "
+            f"{archetype['description']} "
+            f"Cascaded to {len(inc.services)} dependent services: {', '.join(inc.services[:5])}."
         )
+        inc.ai_summary = desc
+        inc.water_pipe_analogy = desc
 
 @app.get("/api/health")
 def get_health():
@@ -167,10 +169,10 @@ def get_incident_detail(incident_id: str):
         raise HTTPException(status_code=404, detail="Incident not found")
 
     # If explanation not yet generated, generate now
-    if not inc.water_pipe_analogy:
+    if not inc.ai_summary:
         exp = llm_summarizer.generate_explanation(inc)
-        inc.water_pipe_analogy = exp["water_pipe_analogy"]
-        inc.ai_summary = exp["diagnostic_summary"]
+        inc.water_pipe_analogy = exp.get("brief_description", "")
+        inc.ai_summary = exp.get("diagnostic_summary", "")
 
     inc_dict = inc.model_dump()
     if config.redaction_enabled:
@@ -189,8 +191,8 @@ def generate_incident_explanation(incident_id: str):
     if not inc:
         raise HTTPException(status_code=404, detail="Incident not found")
     exp = llm_summarizer.generate_explanation(inc)
-    inc.water_pipe_analogy = exp["water_pipe_analogy"]
-    inc.ai_summary = exp["diagnostic_summary"]
+    inc.water_pipe_analogy = exp.get("brief_description", "")
+    inc.ai_summary = exp.get("diagnostic_summary", "")
     return exp
 
 # 4. Raw Alerts & Streaming
