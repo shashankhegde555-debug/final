@@ -12,6 +12,7 @@ interface HeaderProps {
   incidentRecall: number;
   onUploadFile?: (file: File) => void;
   onLoadRealSample?: () => void;
+  onLoadLoghubDataset?: (dataset: string) => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -25,6 +26,7 @@ export const Header: React.FC<HeaderProps> = ({
   incidentRecall,
   onUploadFile,
   onLoadRealSample,
+  onLoadLoghubDataset,
 }) => {
   return (
     <header className="border-b border-slate-800 bg-slate-900/90 backdrop-blur sticky top-0 z-40 px-6 py-3.5 shadow-md">
@@ -87,16 +89,31 @@ export const Header: React.FC<HeaderProps> = ({
             </label>
           )}
 
-          {onLoadRealSample && (
-            <button
-              onClick={onLoadRealSample}
-              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600/30 hover:bg-emerald-600 text-emerald-300 hover:text-white border border-emerald-500/40 flex items-center gap-1.5 transition shadow-sm"
-              title="Loads real-world Postgres+Redis+Nginx production incident dataset"
+          {/* Real Production Datasets Selector */}
+          <div className="flex items-center gap-1.5">
+            <select
+              defaultValue=""
+              onChange={(e) => {
+                const val = e.target.value;
+                if (!val) return;
+                if (val === 'postgres' && onLoadRealSample) {
+                  onLoadRealSample();
+                } else if (onLoadLoghubDataset) {
+                  onLoadLoghubDataset(val);
+                }
+                e.target.value = '';
+              }}
+              className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-emerald-950/60 hover:bg-emerald-900/60 text-emerald-300 border border-emerald-500/40 cursor-pointer transition shadow-sm outline-none"
+              title="Select authentic published production server datasets"
             >
-              <Database className="w-3.5 h-3.5" />
-              <span>Load Real Outage Sample</span>
-            </button>
-          )}
+              <option value="" disabled>⚡ Load Real Production Data...</option>
+              <option value="zookeeper">Real Zookeeper Cluster (Loghub, 2k logs)</option>
+              <option value="hadoop">Real Hadoop Cluster (Loghub, 960 errors)</option>
+              <option value="openstack">Real OpenStack Cloud (Loghub, 2k logs)</option>
+              <option value="hdfs">Real HDFS Storage (Loghub, block fails)</option>
+              <option value="postgres">Real Postgres DB Outage (Multi-Tier)</option>
+            </select>
+          </div>
 
           {/* Redaction Switch */}
           <button

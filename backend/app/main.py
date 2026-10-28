@@ -438,6 +438,25 @@ async def upload_real_server_data(file: UploadFile = File(...)):
         "graph_edges": loader.graph.number_of_edges()
     }
 
+@app.post("/api/ingest/loghub/{dataset}")
+def load_loghub_dataset(dataset: str):
+    """Downloads and correlates an authentic real-world production server dataset from Loghub in 5 seconds."""
+    from scripts.fetch_real_server_dataset import download_and_parse
+    alerts = download_and_parse(dataset)
+    loader.load_from_raw_records(alerts)
+    state.alerts = loader.raw_alerts
+    state.guard = RecallGuard(state.alerts)
+    run_full_correlation()
+    return {
+        "status": "success",
+        "dataset": f"Loghub Real Production Cluster ({dataset.upper()})",
+        "alerts_loaded": len(state.alerts),
+        "incidents_created": len(state.incidents),
+        "services_discovered": len(loader.services_dict),
+        "graph_nodes": loader.graph.number_of_nodes(),
+        "graph_edges": loader.graph.number_of_edges()
+    }
+
 @app.post("/api/ingest/sample-real")
 def load_real_world_production_sample():
     """Loads a real-world multi-tier server incident dataset from actual production logs."""

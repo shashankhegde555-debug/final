@@ -201,6 +201,31 @@ export function App() {
     }
   };
 
+  const handleLoadLoghubDataset = async (dataset: string) => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/ingest/loghub/${dataset}`, { method: 'POST' }).then((r) => r.json());
+      const [incRes, noiseRes, whatIfRes, metricsRes, topoRes] = await Promise.all([
+        fetch('/api/incidents?limit=100').then((r) => r.json()),
+        fetch('/api/noise/rules').then((r) => r.json()),
+        fetch('/api/noise/what-if').then((r) => r.json()),
+        fetch('/api/metrics').then((r) => r.json()),
+        fetch('/api/topology').then((r) => r.json()),
+      ]);
+
+      setIncidents(incRes.incidents || []);
+      setNoiseRules(noiseRes.rules || []);
+      setWhatIfImpact(whatIfRes || null);
+      setBenchmarks(metricsRes.benchmarks || []);
+      setTopology(topoRes || { nodes: [], edges: [] });
+      setReplayAlertCount(res.alerts_loaded || 2000);
+    } catch (err) {
+      console.error(`Error loading ${dataset} dataset:`, err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Slice displayed incidents proportional to replay progression
   const displayedIncidents = incidents.slice(
     0,
@@ -221,6 +246,7 @@ export function App() {
         incidentRecall={100.0}
         onUploadFile={handleUploadFile}
         onLoadRealSample={handleLoadRealSample}
+        onLoadLoghubDataset={handleLoadLoghubDataset}
       />
 
       {/* Main Body */}
