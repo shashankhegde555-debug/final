@@ -1,123 +1,91 @@
 import React from 'react';
-import { Incident } from '../types';
+import type { Incident } from '../types';
 
 interface IncidentFeedProps {
   incidents: Incident[];
-  onSelectIncident?: (inc: Incident) => void;
 }
 
-export const IncidentFeed: React.FC<IncidentFeedProps> = ({ incidents }) => {
+const severities = ['critical', 'high', 'warning'] as const;
+const formatSeverity = (value: string) => value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
+
+function IncidentChart({ incidents }: IncidentFeedProps) {
+  const counts = severities.map((severity) => ({
+    severity,
+    count: incidents.filter((incident) => incident.severity.toLowerCase() === severity).length,
+  }));
+  const maxCount = Math.max(1, ...counts.map(({ count }) => count));
+
   return (
-    <div className="space-y-6 font-mono">
-      {/* Section Header (Zero Buttons, Plain English) */}
-      <div className="flex items-center justify-between border-b-2 border-white pb-2">
-        <h2 className="text-sm font-bold text-white uppercase tracking-wider font-['Silkscreen']">
-          // DETECTED REAL INCIDENTS ({incidents.length} GROUPS)
-        </h2>
-        <span className="text-[11px] text-neutral-400">
-          Showing 100% Real Production Server Incidents
-        </span>
+    <section className="chart-panel" aria-labelledby="incident-chart-title">
+      <div className="section-heading">
+        <div>
+          <p className="eyebrow">AT A GLANCE</p>
+          <h2 id="incident-chart-title">Incident Feed</h2>
+          <p className="section-description">Each bar shows the number of incidents at that level.</p>
+        </div>
+        <p className="chart-total"><strong>{incidents.length}</strong><span>incidents</span></p>
       </div>
 
-      {/* Incident Cards */}
-      <div className="grid grid-cols-1 gap-5">
-        {incidents.map((inc, idx) => {
-          const isPrimary = idx === 0;
-          return (
-            <div
-              key={inc.incident_id || idx}
-              className={`p-5 bg-black ${
-                isPrimary
-                  ? 'border-2 border-red-600 shadow-[6px_6px_0px_#ffffff]'
-                  : 'border-2 border-white shadow-[6px_6px_0px_#ff0033]'
-              }`}
-            >
-              {/* Header Badges */}
-              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-neutral-800 pb-3 mb-3">
-                <div className="flex items-center gap-2">
-                  <span className="px-2 py-0.5 text-xs font-bold bg-white text-black font-['Silkscreen']">
-                    INCIDENT #{idx + 1}
-                  </span>
-                  <span className={`px-2 py-0.5 text-xs font-bold uppercase ${
-                    inc.severity === 'critical' ? 'bg-red-600 text-white' : 'bg-neutral-800 text-white border border-white/40'
-                  }`}>
-                    {inc.severity.toUpperCase()}
-                  </span>
-                </div>
+      <div
+        className="severity-chart"
+        role="img"
+        aria-label={counts.map(({ severity, count }) => `${formatSeverity(severity)}: ${count} incidents`).join(', ')}
+      >
+        {counts.map(({ severity, count }) => (
+          <div className="chart-row" key={severity}>
+            <span className="chart-label">{formatSeverity(severity)}</span>
+            <div className="chart-track" aria-hidden="true">
+              <div
+                className={`chart-bar severity-${severity}`}
+                style={{ width: count === 0 ? '0%' : `${Math.max(4, (count / maxCount) * 100)}%` }}
+              />
+            </div>
+            <span className="chart-count">{count}</span>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
 
-                <div className="text-xs text-neutral-400">
-                  Collapses <strong className="text-white text-sm">{inc.alerts.length}</strong> raw alarms into 1 ticket
-                </div>
-              </div>
+export const IncidentFeed: React.FC<IncidentFeedProps> = ({ incidents }) => (
+  <div className="feed-layout">
+    <IncidentChart incidents={incidents} />
 
-              {/* Origin Root Cause Server Banner */}
-              <div className="p-3 bg-neutral-950 border border-red-600/80 mb-4">
-                <div className="text-[10px] text-red-500 font-bold uppercase tracking-wider">
-                  IDENTIFIED ROOT-CAUSE ORIGIN SERVER:
-                </div>
-                <div className="text-base font-bold text-white mt-0.5 font-['Silkscreen']">
-                  {inc.origin.service}
-                  <span className="ml-3 text-xs text-red-400 font-normal font-mono">
-                    (Origin Confidence: {(inc.origin.confidence * 100).toFixed(0)}%)
+    <section className="incident-section" aria-labelledby="incident-list-title">
+      <div className="section-heading list-heading">
+        <div>
+          <p className="eyebrow">ALL EVENTS</p>
+          <h2 id="incident-list-title">Incidents</h2>
+        </div>
+        <span className="plain-count">{incidents.length} shown</span>
+      </div>
+
+      {incidents.length === 0 ? (
+        <div className="empty-state">No incidents to show.</div>
+      ) : (
+        <div className="incident-list">
+          {incidents.map((incident) => (
+            <article className="incident-card" key={incident.incident_id}>
+              <div className={`severity-marker severity-${incident.severity.toLowerCase()}`} aria-hidden="true" />
+              <div className="incident-main">
+                <div className="incident-meta">
+                  <span className="incident-id">{incident.incident_id}</span>
+                  <span className={`severity-tag severity-${incident.severity.toLowerCase()}`}>
+                    {formatSeverity(incident.severity)}
                   </span>
                 </div>
-              </div>
-
-              {/* Simple English Explanation for Judges */}
-              <div className="mb-4">
-                <div className="text-[10px] text-neutral-400 uppercase font-bold mb-1">
-                  What Failed (Simple English Diagnosis):
-                </div>
-                <p className="text-xs text-neutral-200 leading-relaxed bg-neutral-950 p-3 border border-neutral-800">
-                  {inc.ai_summary || inc.summary || "Severe hardware or network bottleneck detected on the origin server, cascading into failure timeouts across all connected downstream microservices."}
+                <h3>{incident.summary}</h3>
+                <p className="incident-facts">
+                  <span><strong>Main service:</strong> {incident.origin.service}</span>
+                  <span><strong>Alerts:</strong> {incident.alerts.length}</span>
+                  <span><strong>Services affected:</strong> {incident.services.length}</span>
                 </p>
               </div>
-
-              {/* Affected Servers List */}
-              <div className="mb-4">
-                <div className="text-[10px] text-neutral-400 uppercase font-bold mb-1.5">
-                  Affected Downstream Servers ({inc.services.length}):
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {inc.services.map((svc) => (
-                    <span
-                      key={svc}
-                      className={`px-2 py-1 text-xs border ${
-                        svc === inc.origin.service
-                          ? 'border-red-600 text-red-400 bg-red-950/40 font-bold'
-                          : 'border-neutral-700 text-neutral-300 bg-neutral-950'
-                      }`}
-                    >
-                      {svc === inc.origin.service ? `* ${svc} (Origin)` : svc}
-                    </span>
-                  ))}
-                </div>
-              </div>
-
-              {/* Sample Authentic Server Logs from this Incident */}
-              <div>
-                <div className="text-[10px] text-neutral-400 uppercase font-bold mb-1.5">
-                  Actual Server Error Logs ({inc.alerts.length} Total):
-                </div>
-                <div className="bg-black border border-neutral-800 p-3 space-y-1.5 text-[11px] text-neutral-300 max-h-36 overflow-y-auto">
-                  {inc.alerts.slice(0, 4).map((a, aIdx) => (
-                    <div key={aIdx} className="flex items-start gap-2 border-b border-neutral-900 pb-1">
-                      <span className="text-red-500 font-bold">[{a.timestamp ? a.timestamp.substring(11, 19) : '12:00:00'}]</span>
-                      <span className="text-white font-bold">{a.service}:</span>
-                      <span className="text-neutral-300 truncate">{a.message}</span>
-                    </div>
-                  ))}
-                  {inc.alerts.length > 4 && (
-                    <div className="text-[10px] text-neutral-500 pt-1 text-center">
-                      + {inc.alerts.length - 4} more server logs collapsed in this incident
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-};
+            </article>
+          ))}
+        </div>
+      )}
+    </section>
+  </div>
+);
