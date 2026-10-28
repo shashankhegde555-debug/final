@@ -1,0 +1,189 @@
+{
+  "incidents": [
+    {
+      "incident_id": "INC-001",
+      "title": "Database slowdown on orders-db due to unindexed query lock",
+      "root_cause_service": "orders-db",
+      "root_cause_type": "database_slowdown",
+      "catalog_id": 1,
+      "start_time": "2026-09-04T14:00:40+00:00",
+      "end_time": "2026-09-04T14:18:21+00:00",
+      "alert_count": 11,
+      "services": [
+        "web-bff",
+        "mobile-bff",
+        "edge-waf",
+        "cart-service",
+        "api-gateway",
+        "checkout-orchestrator",
+        "order-service",
+        "orders-db",
+        "edge-cdn"
+      ]
+    },
+    {
+      "incident_id": "INC-002",
+      "title": "Out of memory leak in cart-service session serialization",
+      "root_cause_service": "cart-service",
+      "root_cause_type": "memory_leak_oom",
+      "catalog_id": 2,
+      "start_time": "2026-09-07T09:00:22+00:00",
+      "end_time": "2026-09-07T09:09:02+00:00",
+      "alert_count": 6,
+      "services": [
+        "mobile-bff",
+        "cart-service",
+        "api-gateway",
+        "session-redis",
+        "checkout-orchestrator"
+      ]
+    },
+    {
+      "incident_id": "INC-003",
+      "title": "Disk full on payments-db WAL volume",
+      "root_cause_service": "payments-db",
+      "root_cause_type": "disk_full",
+      "catalog_id": 3,
+      "start_time": "2026-09-10T22:00:05+00:00",
+      "end_time": "2026-09-10T22:09:10+00:00",
+      "alert_count": 6,
+      "services": [
+        "partner-gateway",
+        "checkout-orchestrator",
+        "billing-service",
+        "payments-db",
+        "payment-service"
+      ]
+    },
+    {
+      "incident_id": "INC-004",
+      "title": "Traffic spike and bot flood on flash sale event",
+      "root_cause_service": "edge-cdn",
+      "root_cause_type": "traffic_spike",
+      "catalog_id": 4,
+      "start_time": "2026-09-14T16:00:10+00:00",
+      "end_time": "2026-09-14T16:06:25+00:00",
+      "alert_count": 6,
+      "services": [
+        "edge-waf",
+        "catalog-service",
+        "rate-limiter",
+        "catalog-db",
+        "api-gateway",
+        "edge-cdn"
+      ]
+    },
+    {
+      "incident_id": "INC-005",
+      "title": "Bad deployment of user-service v2.14 schema migration",
+      "root_cause_service": "user-service",
+      "root_cause_type": "bad_deployment",
+      "catalog_id": 5,
+      "start_time": "2026-09-17T11:00:16+00:00",
+      "end_time": "2026-09-17T11:05:03+00:00",
+      "alert_count": 5,
+      "services": [
+        "api-gateway",
+        "user-service",
+        "web-bff",
+        "auth-service"
+      ]
+    },
+    {
+      "incident_id": "INC-006",
+      "title": "Network partition / unreachable cloud-kms key provider",
+      "root_cause_service": "cloud-kms",
+      "root_cause_type": "network_partition",
+      "catalog_id": 6,
+      "start_time": "2026-09-20T03:00:43+00:00",
+      "end_time": "2026-09-20T03:05:00+00:00",
+      "alert_count": 4,
+      "services": [
+        "payment-service",
+        "checkout-orchestrator",
+        "cloud-kms",
+        "auth-service"
+      ]
+    },
+    {
+      "incident_id": "INC-007",
+      "title": "Internal DNS resolver failure across service cluster",
+      "root_cause_service": "dns-resolver",
+      "root_cause_type": "dns_failure",
+      "catalog_id": 7,
+      "start_time": "2026-09-22T08:00:43+00:00",
+      "end_time": "2026-09-22T08:04:16+00:00",
+      "alert_count": 4,
+      "services": [
+        "email-dispatcher",
+        "dns-resolver",
+        "tax-calculator",
+        "shipping-service"
+      ]
+    },
+    {
+      "incident_id": "INC-008",
+      "title": "Expired SSL/TLS wildcard certificate on edge ingress",
+      "root_cause_service": "ssl-terminator",
+      "root_cause_type": "expired_certificate",
+      "catalog_id": 8,
+      "start_time": "2026-09-24T00:00:32+00:00",
+      "end_time": "2026-09-24T00:04:34+00:00",
+      "alert_count": 4,
+      "services": [
+        "mobile-bff",
+        "partner-gateway",
+        "ssl-terminator",
+        "edge-cdn"
+      ]
+    },
+    {
+      "incident_id": "INC-009A",
+      "title": "Third-party payment gateway outage on Stripe API",
+      "root_cause_service": "stripe-api",
+      "root_cause_type": "third_party_outage",
+      "catalog_id": 9,
+      "start_time": "2026-09-26T14:05:38+00:00",
+      "end_time": "2026-09-26T14:09:36+00:00",
+      "alert_count": 4,
+      "services": [
+        "payment-service",
+        "stripe-api",
+        "checkout-orchestrator",
+        "billing-service"
+      ]
+    },
+    {
+      "incident_id": "INC-009B",
+      "title": "Connection pool exhaustion on search-elasticsearch cluster",
+      "root_cause_service": "search-elasticsearch",
+      "root_cause_type": "connection_pool_exhaustion",
+      "catalog_id": 10,
+      "start_time": "2026-09-26T14:12:04+00:00",
+      "end_time": "2026-09-26T14:16:38+00:00",
+      "alert_count": 4,
+      "services": [
+        "catalog-service",
+        "recommendation-service",
+        "search-service",
+        "search-elasticsearch"
+      ]
+    },
+    {
+      "incident_id": "INC-010",
+      "title": "Cache failure and cluster node eviction on cache-redis-cluster",
+      "root_cause_service": "cache-redis-cluster",
+      "root_cause_type": "cache_failure",
+      "catalog_id": 12,
+      "start_time": "2026-09-28T17:00:34+00:00",
+      "end_time": "2026-09-28T17:05:15+00:00",
+      "alert_count": 4,
+      "services": [
+        "catalog-db",
+        "cache-redis-cluster",
+        "pricing-service",
+        "catalog-service"
+      ]
+    }
+  ]
+}

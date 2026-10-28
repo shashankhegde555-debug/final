@@ -1,0 +1,570 @@
+{
+  "services": [
+    {
+      "service": "edge-cdn",
+      "tier": "edge",
+      "application": "edge-app",
+      "dependencies": [
+        "api-gateway",
+        "web-bff"
+      ]
+    },
+    {
+      "service": "edge-waf",
+      "tier": "edge",
+      "application": "edge-app",
+      "dependencies": [
+        "api-gateway",
+        "partner-gateway"
+      ]
+    },
+    {
+      "service": "dns-resolver",
+      "tier": "edge",
+      "application": "dns-app",
+      "dependencies": []
+    },
+    {
+      "service": "ssl-terminator",
+      "tier": "edge",
+      "application": "ssl-app",
+      "dependencies": [
+        "edge-cdn",
+        "edge-waf"
+      ]
+    },
+    {
+      "service": "api-gateway",
+      "tier": "gateway",
+      "application": "api-app",
+      "dependencies": [
+        "auth-service",
+        "session-manager",
+        "rate-limiter",
+        "feature-flags-service"
+      ]
+    },
+    {
+      "service": "mobile-bff",
+      "tier": "gateway",
+      "application": "mobile-app",
+      "dependencies": [
+        "api-gateway",
+        "cart-service",
+        "catalog-service",
+        "order-service"
+      ]
+    },
+    {
+      "service": "web-bff",
+      "tier": "gateway",
+      "application": "web-app",
+      "dependencies": [
+        "api-gateway",
+        "user-service",
+        "catalog-service",
+        "search-service"
+      ]
+    },
+    {
+      "service": "partner-gateway",
+      "tier": "gateway",
+      "application": "partner-app",
+      "dependencies": [
+        "auth-service",
+        "order-service",
+        "inventory-service"
+      ]
+    },
+    {
+      "service": "webhook-ingress",
+      "tier": "gateway",
+      "application": "webhook-app",
+      "dependencies": []
+    },
+    {
+      "service": "auth-service",
+      "tier": "service",
+      "application": "identity-app",
+      "dependencies": [
+        "users-db",
+        "session-redis",
+        "cloud-kms"
+      ]
+    },
+    {
+      "service": "user-service",
+      "tier": "service",
+      "application": "identity-app",
+      "dependencies": [
+        "users-db",
+        "audit-service"
+      ]
+    },
+    {
+      "service": "cart-service",
+      "tier": "service",
+      "application": "order-management",
+      "dependencies": [
+        "session-redis",
+        "pricing-service",
+        "catalog-service",
+        "coupon-service"
+      ]
+    },
+    {
+      "service": "order-service",
+      "tier": "service",
+      "application": "order-management",
+      "dependencies": [
+        "orders-db",
+        "inventory-service",
+        "payment-service",
+        "notification-service",
+        "events-kafka"
+      ]
+    },
+    {
+      "service": "payment-service",
+      "tier": "service",
+      "application": "payments-app",
+      "dependencies": [
+        "payments-db",
+        "fraud-detection",
+        "stripe-api",
+        "billing-service",
+        "cloud-kms"
+      ]
+    },
+    {
+      "service": "inventory-service",
+      "tier": "service",
+      "application": "inventory-app",
+      "dependencies": [
+        "inventory-db",
+        "warehouse-sync",
+        "events-kafka"
+      ]
+    },
+    {
+      "service": "catalog-service",
+      "tier": "service",
+      "application": "catalog-search-app",
+      "dependencies": [
+        "catalog-db",
+        "cache-redis-cluster",
+        "search-service"
+      ]
+    },
+    {
+      "service": "pricing-service",
+      "tier": "service",
+      "application": "inventory-app",
+      "dependencies": []
+    },
+    {
+      "service": "notification-service",
+      "tier": "service",
+      "application": "comms-app",
+      "dependencies": [
+        "email-dispatcher",
+        "sms-gateway-client",
+        "jobs-rabbitmq"
+      ]
+    },
+    {
+      "service": "search-service",
+      "tier": "service",
+      "application": "catalog-search-app",
+      "dependencies": [
+        "search-elasticsearch",
+        "catalog-db"
+      ]
+    },
+    {
+      "service": "recommendation-service",
+      "tier": "service",
+      "application": "catalog-search-app",
+      "dependencies": [
+        "catalog-service",
+        "search-elasticsearch",
+        "analytics-collector"
+      ]
+    },
+    {
+      "service": "shipping-service",
+      "tier": "service",
+      "application": "logistics-app",
+      "dependencies": [
+        "google-maps-api",
+        "orders-db",
+        "events-kafka"
+      ]
+    },
+    {
+      "service": "billing-service",
+      "tier": "service",
+      "application": "payments-app",
+      "dependencies": [
+        "payments-db",
+        "pdf-generator",
+        "notification-service"
+      ]
+    },
+    {
+      "service": "coupon-service",
+      "tier": "service",
+      "application": "coupon-app",
+      "dependencies": []
+    },
+    {
+      "service": "fraud-detection",
+      "tier": "service",
+      "application": "payments-app",
+      "dependencies": [
+        "payments-db",
+        "events-kafka",
+        "session-redis"
+      ]
+    },
+    {
+      "service": "audit-service",
+      "tier": "service",
+      "application": "audit-app",
+      "dependencies": [
+        "audit-postgres",
+        "events-kafka"
+      ]
+    },
+    {
+      "service": "reporting-service",
+      "tier": "service",
+      "application": "reporting-app",
+      "dependencies": [
+        "reporting-olap-db",
+        "export-worker"
+      ]
+    },
+    {
+      "service": "email-dispatcher",
+      "tier": "service",
+      "application": "comms-app",
+      "dependencies": [
+        "sendgrid-smtp",
+        "audit-service"
+      ]
+    },
+    {
+      "service": "sms-gateway-client",
+      "tier": "service",
+      "application": "comms-app",
+      "dependencies": [
+        "twilio-sms-api",
+        "audit-service"
+      ]
+    },
+    {
+      "service": "analytics-collector",
+      "tier": "service",
+      "application": "analytics-app",
+      "dependencies": [
+        "timeseries-influx",
+        "events-kafka"
+      ]
+    },
+    {
+      "service": "session-manager",
+      "tier": "service",
+      "application": "identity-app",
+      "dependencies": [
+        "session-redis"
+      ]
+    },
+    {
+      "service": "review-service",
+      "tier": "service",
+      "application": "review-app",
+      "dependencies": []
+    },
+    {
+      "service": "wishlist-service",
+      "tier": "service",
+      "application": "wishlist-app",
+      "dependencies": []
+    },
+    {
+      "service": "merchant-portal-api",
+      "tier": "service",
+      "application": "merchant-app",
+      "dependencies": []
+    },
+    {
+      "service": "customer-support-api",
+      "tier": "service",
+      "application": "customer-app",
+      "dependencies": []
+    },
+    {
+      "service": "tax-calculator",
+      "tier": "service",
+      "application": "tax-app",
+      "dependencies": [
+        "taxjar-api",
+        "cache-redis-cluster"
+      ]
+    },
+    {
+      "service": "currency-converter",
+      "tier": "service",
+      "application": "currency-app",
+      "dependencies": []
+    },
+    {
+      "service": "pdf-generator",
+      "tier": "service",
+      "application": "pdf-app",
+      "dependencies": []
+    },
+    {
+      "service": "export-worker",
+      "tier": "service",
+      "application": "export-app",
+      "dependencies": [
+        "warehouse-replica-db",
+        "aws-s3-endpoint"
+      ]
+    },
+    {
+      "service": "image-resizer",
+      "tier": "service",
+      "application": "image-app",
+      "dependencies": []
+    },
+    {
+      "service": "file-storage-api",
+      "tier": "service",
+      "application": "file-app",
+      "dependencies": []
+    },
+    {
+      "service": "warehouse-sync",
+      "tier": "service",
+      "application": "logistics-app",
+      "dependencies": [
+        "inventory-db",
+        "jobs-rabbitmq"
+      ]
+    },
+    {
+      "service": "returns-service",
+      "tier": "service",
+      "application": "logistics-app",
+      "dependencies": [
+        "orders-db",
+        "inventory-service",
+        "shipping-service"
+      ]
+    },
+    {
+      "service": "loyalty-service",
+      "tier": "service",
+      "application": "loyalty-app",
+      "dependencies": [
+        "users-db",
+        "orders-db"
+      ]
+    },
+    {
+      "service": "giftcard-service",
+      "tier": "service",
+      "application": "giftcard-app",
+      "dependencies": []
+    },
+    {
+      "service": "checkout-orchestrator",
+      "tier": "service",
+      "application": "order-management",
+      "dependencies": [
+        "cart-service",
+        "order-service",
+        "payment-service",
+        "inventory-service",
+        "tax-calculator"
+      ]
+    },
+    {
+      "service": "feed-aggregator",
+      "tier": "service",
+      "application": "feed-app",
+      "dependencies": []
+    },
+    {
+      "service": "rate-limiter",
+      "tier": "service",
+      "application": "rate-app",
+      "dependencies": []
+    },
+    {
+      "service": "feature-flags-service",
+      "tier": "service",
+      "application": "feature-app",
+      "dependencies": []
+    },
+    {
+      "service": "event-stream-router",
+      "tier": "service",
+      "application": "event-app",
+      "dependencies": []
+    },
+    {
+      "service": "subscription-manager",
+      "tier": "service",
+      "application": "subscription-app",
+      "dependencies": []
+    },
+    {
+      "service": "users-db",
+      "tier": "datastore",
+      "application": "users-app",
+      "dependencies": []
+    },
+    {
+      "service": "orders-db",
+      "tier": "datastore",
+      "application": "orders-app",
+      "dependencies": []
+    },
+    {
+      "service": "payments-db",
+      "tier": "datastore",
+      "application": "payments-app",
+      "dependencies": []
+    },
+    {
+      "service": "inventory-db",
+      "tier": "datastore",
+      "application": "inventory-app",
+      "dependencies": []
+    },
+    {
+      "service": "catalog-db",
+      "tier": "datastore",
+      "application": "catalog-app",
+      "dependencies": []
+    },
+    {
+      "service": "session-redis",
+      "tier": "datastore",
+      "application": "session-app",
+      "dependencies": []
+    },
+    {
+      "service": "cache-redis-cluster",
+      "tier": "datastore",
+      "application": "cache-app",
+      "dependencies": []
+    },
+    {
+      "service": "search-elasticsearch",
+      "tier": "datastore",
+      "application": "search-app",
+      "dependencies": []
+    },
+    {
+      "service": "events-kafka",
+      "tier": "datastore",
+      "application": "events-app",
+      "dependencies": []
+    },
+    {
+      "service": "jobs-rabbitmq",
+      "tier": "datastore",
+      "application": "jobs-app",
+      "dependencies": []
+    },
+    {
+      "service": "timeseries-influx",
+      "tier": "datastore",
+      "application": "timeseries-app",
+      "dependencies": []
+    },
+    {
+      "service": "audit-postgres",
+      "tier": "datastore",
+      "application": "audit-app",
+      "dependencies": []
+    },
+    {
+      "service": "warehouse-replica-db",
+      "tier": "datastore",
+      "application": "warehouse-app",
+      "dependencies": []
+    },
+    {
+      "service": "reporting-olap-db",
+      "tier": "datastore",
+      "application": "reporting-app",
+      "dependencies": []
+    },
+    {
+      "service": "stripe-api",
+      "tier": "thirdparty",
+      "application": "stripe-app",
+      "dependencies": []
+    },
+    {
+      "service": "sendgrid-smtp",
+      "tier": "thirdparty",
+      "application": "sendgrid-app",
+      "dependencies": []
+    },
+    {
+      "service": "twilio-sms-api",
+      "tier": "thirdparty",
+      "application": "twilio-app",
+      "dependencies": []
+    },
+    {
+      "service": "google-maps-api",
+      "tier": "thirdparty",
+      "application": "google-app",
+      "dependencies": []
+    },
+    {
+      "service": "aws-s3-endpoint",
+      "tier": "thirdparty",
+      "application": "aws-app",
+      "dependencies": []
+    },
+    {
+      "service": "taxjar-api",
+      "tier": "thirdparty",
+      "application": "taxjar-app",
+      "dependencies": []
+    },
+    {
+      "service": "cloud-kms",
+      "tier": "thirdparty",
+      "application": "cloud-app",
+      "dependencies": []
+    },
+    {
+      "service": "datadog-agent",
+      "tier": "thirdparty",
+      "application": "datadog-app",
+      "dependencies": []
+    },
+    {
+      "service": "pagerduty-webhook",
+      "tier": "thirdparty",
+      "application": "pagerduty-app",
+      "dependencies": []
+    },
+    {
+      "service": "elastic-cloud",
+      "tier": "thirdparty",
+      "application": "elastic-app",
+      "dependencies": []
+    }
+  ]
+}
